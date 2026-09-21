@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Plus, Search, Users } from "lucide-react";
-
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -66,7 +66,7 @@ const customers = [
 
 export default function CustomersPage() {
   const [search, setSearch] = React.useState("");
-
+  const router = useRouter();
   const filteredCustomers = customers.filter((customer) => {
     const searchValue = search.toLowerCase();
 
@@ -124,7 +124,20 @@ export default function CustomersPage() {
 
               <TableBody>
                 {filteredCustomers.map((customer) => (
-                  <TableRow key={customer.id} className="cursor-pointer">
+                  <TableRow
+                    key={customer.id}
+                    className="cursor-pointer"
+                    onClick={() =>
+                      router.push(`/dashboard/customers/${customer.id}`)
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        router.push(`/dashboard/customers/${customer.id}`);
+                      }
+                    }}
+                    tabIndex={0}
+                  >
                     <TableCell>
                       <div>
                         <div className="font-medium">{customer.name}</div>

@@ -1,3 +1,5 @@
+import { ClickableDevice } from "@/components/clickable-device";
+import { ClickableWorkOrder } from "@/components/clickable-work-order";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -11,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 const customer = {
   id: "CUS-00124",
   name: "Mark Jansen",
@@ -84,9 +87,9 @@ export default async function CustomerDetailPage({
       <div>
         {" "}
         <Button
-          variant="ghost"
           size="sm"
           className="mb-4 -ml-2"
+          nativeButton={false}
           render={<Link href="/dashboard/customers" />}
         >
           {" "}
@@ -223,10 +226,7 @@ export default async function CustomerDetailPage({
           <div className="space-y-2">
             {" "}
             {devices.map((device) => (
-              <div
-                key={device.id}
-                className="flex items-center justify-between gap-4 rounded-lg p-4 transition-colors hover:bg-muted/50"
-              >
+              <ClickableDevice key={device.id} id={device.id}>
                 {" "}
                 <div className="flex min-w-0 items-center gap-4">
                   {" "}
@@ -257,7 +257,7 @@ export default async function CustomerDetailPage({
                     {device.status}{" "}
                   </Badge>{" "}
                 </div>{" "}
-              </div>
+              </ClickableDevice>
             ))}{" "}
           </div>{" "}
         </CardContent>{" "}
@@ -274,10 +274,7 @@ export default async function CustomerDetailPage({
           <div className="space-y-1">
             {" "}
             {workOrders.map((order) => (
-              <div
-                key={order.id}
-                className="flex items-center justify-between gap-4 rounded-lg p-4 transition-colors hover:bg-muted/50"
-              >
+              <ClickableWorkOrder key={order.id} id={order.id}>
                 {" "}
                 <div className="flex min-w-0 items-center gap-4">
                   {" "}
@@ -315,7 +312,7 @@ export default async function CustomerDetailPage({
                     {order.status}{" "}
                   </Badge>{" "}
                 </div>{" "}
-              </div>
+              </ClickableWorkOrder>
             ))}{" "}
           </div>{" "}
         </CardContent>{" "}

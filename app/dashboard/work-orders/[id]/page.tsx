@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -13,21 +14,61 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const workOrder = {
-  id: "WO-00142",
-  customer: "Mark Jansen",
-  email: "mark.jansen@example.com",
-  phone: "+31 6 12345678",
-  device: "PlayStation 5",
-  issue: "No HDMI output",
-  status: "Repairing",
-  created: "21 September 2026",
-  updated: "12 minutes ago",
-  diagnosis:
-    "HDMI output is not detected. Initial inspection indicates a possible HDMI port or HDMI circuit issue.",
-  notes:
-    "Console powers on normally. No video signal detected. HDMI port inspection required.",
-};
+const workOrders = [
+  {
+    id: "WO-00142",
+    customer: "Mark Jansen",
+    customerId: "CUS-00124",
+    device: "PlayStation 5",
+    deviceId: "DEV-00087",
+    issue: "No HDMI output",
+    status: "Repairing",
+    created: "14 March 2025",
+    updated: "12 minutes ago",
+    diagnosis:
+      "The HDMI port and surrounding HDMI circuitry require further inspection. Repair is currently in progress.",
+    notes:
+      "Initial inspection completed. HDMI port area is being inspected and tested.",
+    email: "mark.jansen@example.com",
+    description:
+      "PlayStation 5 powers on but produces no HDMI output. Initial inspection indicates a possible HDMI port or HDMI circuit issue.",
+  },
+  {
+    id: "WO-00121",
+    customer: "Mark Jansen",
+    customerId: "CUS-00124",
+    device: "PlayStation 5",
+    deviceId: "DEV-00087",
+    issue: "Overheating",
+    status: "Completed",
+    created: "5 January 2025",
+    updated: "2 months ago",
+    diagnosis:
+      "The console was overheating due to accumulated dust and degraded thermal material.",
+    notes:
+      "Internal cleaning and thermal maintenance completed. Console tested successfully.",
+    email: "mark.jansen@example.com",
+    description:
+      "PlayStation 5 was overheating during extended use. Internal cleaning and thermal maintenance were performed.",
+  },
+  {
+    id: "WO-00135",
+    customer: "Mark Jansen",
+    customerId: "CUS-00124",
+    device: "DualSense",
+    deviceId: "DEV-00052",
+    issue: "Stick drift",
+    status: "Completed",
+    created: "1 March 2025",
+    updated: "2 weeks ago",
+    diagnosis:
+      "The analog stick module was showing unwanted movement and inconsistent centering.",
+    notes: "Stick module replaced and controller tested successfully.",
+    email: "mark.jansen@example.com",
+    description:
+      "DualSense controller reported unwanted movement from the analog stick. Stick module replacement was performed.",
+  },
+];
 
 function getStatusClass(status: string) {
   switch (status) {
@@ -55,15 +96,24 @@ export default async function WorkOrderDetailPage({
 }) {
   const { id } = await params;
 
+  const workOrder = workOrders.find((workOrder) => workOrder.id === id);
+
+  if (!workOrder) {
+    notFound();
+  }
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <Button variant="ghost" size="sm" className="mb-4 -ml-2">
-          <Link href="/dashboard/work-orders">
-            <ArrowLeft />
-            Back to Work Orders
-          </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mb-4 -ml-2"
+          nativeButton={false}
+          render={<Link href="/dashboard/work-orders" />}
+        >
+          <ArrowLeft />
+          Back to Work Orders
         </Button>
 
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -184,7 +234,12 @@ export default async function WorkOrderDetailPage({
                 </div>
 
                 <div>
-                  <p className="font-medium">{workOrder.customer}</p>
+                  <Link
+                    href={`/dashboard/customers/${workOrder.customerId}`}
+                    className="font-medium hover:underline"
+                  >
+                    {workOrder.customer}
+                  </Link>
 
                   <p className="text-sm text-muted-foreground">Customer</p>
                 </div>
@@ -213,8 +268,12 @@ export default async function WorkOrderDetailPage({
                 <span className="text-sm text-muted-foreground">
                   Work Order
                 </span>
-
-                <span className="text-sm font-medium">{workOrder.id}</span>
+                <Link
+                  href={`/dashboard/devices/${workOrder.deviceId}`}
+                  className="text-sm font-medium hover:underline"
+                >
+                  {workOrder.deviceId}
+                </Link>
               </div>
 
               <div className="flex items-center justify-between">
