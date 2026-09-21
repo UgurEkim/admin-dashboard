@@ -1,9 +1,5 @@
-import {
-  LayoutDashboard,
-  Settings,
-  Server,
-  Wrench,
-} from "lucide-react";
+import Link from "next/link";
+import { LayoutDashboard, Settings, Server, Wrench } from "lucide-react";
 
 import {
   Sidebar,
@@ -25,14 +21,14 @@ const items = [
     icon: LayoutDashboard,
   },
   {
-    title: "Servers",
-    url: "/dashboard/servers",
-    icon: Server,
+    title: "Work Orders",
+    url: "/dashboard/work-orders",
+    icon: Wrench,
   },
   {
-    title: "Tools",
-    url: "/dashboard/tools",
-    icon: Wrench,
+    title: "Customers",
+    url: "/dashboard/customers",
+    icon: Server,
   },
   {
     title: "Settings",
@@ -45,20 +41,29 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="px-2 py-2 text-lg font-semibold">
-          Admin Dashboard
+        <div className="px-2 py-3">
+          <div className="text-lg font-semibold tracking-tight">
+            Repair Admin
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            Technician Dashboard
+          </div>
         </div>
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
+          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
 
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton render={<a href={item.url} />}>
+                  <SidebarMenuButton
+                    tooltip={item.title}
+                    render={<Link href={item.url} />}
+                  >
                     <item.icon />
                     <span>{item.title}</span>
                   </SidebarMenuButton>
@@ -70,8 +75,10 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="px-2 py-2 text-xs text-muted-foreground">
-          Personal Dashboard
+        <div className="px-2 py-2">
+          <div className="text-xs text-muted-foreground">Repair Admin</div>
+
+          <div className="text-xs text-muted-foreground/60">v0.1</div>
         </div>
       </SidebarFooter>
     </Sidebar>
