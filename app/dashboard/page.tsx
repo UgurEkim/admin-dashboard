@@ -1,7 +1,8 @@
 import { Activity, CheckCircle2, Clock3, Wrench } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { ClickableWorkOrder } from "@/components/clickable-work-order";
+import { StatusBadge } from "@/components/status-badge";
 
 const stats = [
   {
@@ -33,28 +34,27 @@ const stats = [
     color: "green",
   },
 ];
-
 const recentWorkOrders = [
   {
-    id: "#00142",
+    id: "WO-00142",
     device: "PlayStation 5",
     issue: "No HDMI output",
     status: "Repairing",
   },
   {
-    id: "#00141",
+    id: "WO-00141",
     device: "DualSense",
     issue: "Stick drift",
     status: "Testing",
   },
   {
-    id: "#00140",
+    id: "WO-00140",
     device: "PlayStation 4",
     issue: "No power",
     status: "Waiting",
   },
   {
-    id: "#00139",
+    id: "WO-00139",
     device: "DualSense",
     issue: "USB-C replacement",
     status: "Completed",
@@ -64,17 +64,20 @@ const recentWorkOrders = [
 const recentActivity = [
   {
     title: "Repair started",
-    description: "PlayStation 5 — WO-00142",
+    device: "PlayStation 5",
+    workOrderId: "WO-00142",
     time: "12 minutes ago",
   },
   {
     title: "Work order created",
-    description: "DualSense — WO-00143",
+    device: "DualSense",
+    workOrderId: "WO-00143",
     time: "32 minutes ago",
   },
   {
     title: "Repair completed",
-    description: "PlayStation 4 — WO-00138",
+    device: "PlayStation 4",
+    workOrderId: "WO-00138",
     time: "1 hour ago",
   },
 ];
@@ -101,15 +104,14 @@ export default function DashboardPage() {
           return (
             <Card key={stat.title} className="relative overflow-hidden">
               <div
-                className={`absolute inset-x-0 top-0 h-1 ${
-                  stat.color === "blue"
-                    ? "bg-blue-500"
-                    : stat.color === "amber"
-                      ? "bg-amber-500"
-                      : stat.color === "purple"
-                        ? "bg-purple-500"
-                        : "bg-green-500"
-                }`}
+                className={`absolute inset-x-0 top-0 h-1 ${stat.color === "blue"
+                  ? "bg-blue-500"
+                  : stat.color === "amber"
+                    ? "bg-amber-500"
+                    : stat.color === "purple"
+                      ? "bg-purple-500"
+                      : "bg-green-500"
+                  }`}
               />
 
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -118,15 +120,14 @@ export default function DashboardPage() {
                 </CardTitle>
 
                 <div
-                  className={`rounded-lg p-2 ${
-                    stat.color === "blue"
-                      ? "bg-blue-500/10 text-blue-500"
-                      : stat.color === "amber"
-                        ? "bg-amber-500/10 text-amber-500"
-                        : stat.color === "purple"
-                          ? "bg-purple-500/10 text-purple-500"
-                          : "bg-green-500/10 text-green-500"
-                  }`}
+                  className={`rounded-lg p-2 ${stat.color === "blue"
+                    ? "bg-blue-500/10 text-blue-500"
+                    : stat.color === "amber"
+                      ? "bg-amber-500/10 text-amber-500"
+                      : stat.color === "purple"
+                        ? "bg-purple-500/10 text-purple-500"
+                        : "bg-green-500/10 text-green-500"
+                    }`}
                 >
                   <Icon className="size-4" />
                 </div>
@@ -154,40 +155,28 @@ export default function DashboardPage() {
 
           <CardContent>
             <div className="space-y-1">
-              {recentWorkOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center justify-between gap-4 rounded-lg p-3 transition-colors hover:bg-muted/50"
+              {recentWorkOrders.map((workOrder) => (
+                <ClickableWorkOrder
+                  key={workOrder.id}
+                  id={workOrder.id}
+                  className="flex items-center justify-between gap-6 p-4"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-3">
-                      <span className="font-medium">{order.id}</span>
+                      <span className="font-medium">{workOrder.id}</span>
 
                       <span className="text-sm text-muted-foreground">
-                        {order.device}
+                        {workOrder.device}
                       </span>
                     </div>
 
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {order.issue}
+                      {workOrder.issue}
                     </p>
                   </div>
 
-                  <Badge
-                    variant="outline"
-                    className={
-                      order.status === "Repairing"
-                        ? "border-blue-500/30 bg-blue-500/10 text-blue-500"
-                        : order.status === "Waiting"
-                          ? "border-amber-500/30 bg-amber-500/10 text-amber-500"
-                          : order.status === "Testing"
-                            ? "border-purple-500/30 bg-purple-500/10 text-purple-500"
-                            : "border-green-500/30 bg-green-500/10 text-green-500"
-                    }
-                  >
-                    {order.status}
-                  </Badge>
-                </div>
+                  <StatusBadge status={workOrder.status} />
+                </ClickableWorkOrder>
               ))}
             </div>
           </CardContent>
@@ -202,9 +191,10 @@ export default function DashboardPage() {
           <CardContent>
             <div className="space-y-6">
               {recentActivity.map((activity) => (
-                <div
-                  key={`${activity.title}-${activity.time}`}
-                  className="flex gap-3"
+                <ClickableWorkOrder
+                  key={activity.workOrderId}
+                  id={activity.workOrderId}
+                  className="flex gap-3 p-2"
                 >
                   <div className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
 
@@ -212,14 +202,14 @@ export default function DashboardPage() {
                     <p className="text-sm font-medium">{activity.title}</p>
 
                     <p className="text-sm text-muted-foreground">
-                      {activity.description}
+                      {activity.device} — {activity.workOrderId}
                     </p>
 
                     <p className="mt-1 text-xs text-muted-foreground/70">
                       {activity.time}
                     </p>
                   </div>
-                </div>
+                </ClickableWorkOrder>
               ))}
             </div>
           </CardContent>
