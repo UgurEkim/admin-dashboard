@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { notFound } from "next/navigation";
+import { StatusBadge } from "@/components/status-badge";
 
 const devices = [
   {
@@ -51,37 +52,6 @@ const devices = [
     ],
   },
 ];
-
-const workOrders = [
-  {
-    id: "WO-00142",
-    issue: "No HDMI output",
-    status: "Repairing",
-    updated: "12 minutes ago",
-  },
-  {
-    id: "WO-00121",
-    issue: "Overheating",
-    status: "Completed",
-    updated: "2 months ago",
-  },
-];
-
-function getStatusClass(status: string) {
-  switch (status) {
-    case "Repairing":
-      return "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
-    case "Testing":
-      return "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300";
-    case "Waiting":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
-    case "Completed":
-      return "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300";
-    default:
-      return "";
-  }
-}
-
 export default async function DeviceDetailPage({
   params,
 }: {
@@ -222,10 +192,7 @@ export default async function DeviceDetailPage({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <Badge className={getStatusClass(workOrder.status)}>
-                    {workOrder.status}
-                  </Badge>
-
+                  <StatusBadge status={workOrder.status} />
                   <span className="text-sm text-muted-foreground">
                     {workOrder.updated}
                   </span>

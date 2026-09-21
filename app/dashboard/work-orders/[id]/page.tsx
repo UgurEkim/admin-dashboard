@@ -3,16 +3,15 @@ import Link from "next/link";
 import {
   ArrowLeft,
   CalendarDays,
-  CheckCircle2,
   Clock3,
   Mail,
   User,
   Wrench,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/status-badge";
 
 const workOrders = [
   {
@@ -70,25 +69,6 @@ const workOrders = [
   },
 ];
 
-function getStatusClass(status: string) {
-  switch (status) {
-    case "Repairing":
-      return "border-blue-500/30 bg-blue-500/10 text-blue-500";
-
-    case "Waiting":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-500";
-
-    case "Testing":
-      return "border-purple-500/30 bg-purple-500/10 text-purple-500";
-
-    case "Completed":
-      return "border-green-500/30 bg-green-500/10 text-green-500";
-
-    default:
-      return "";
-  }
-}
-
 export default async function WorkOrderDetailPage({
   params,
 }: {
@@ -121,12 +101,7 @@ export default async function WorkOrderDetailPage({
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight">{id}</h1>
 
-              <Badge
-                variant="outline"
-                className={getStatusClass(workOrder.status)}
-              >
-                {workOrder.status}
-              </Badge>
+              <StatusBadge status={workOrder.status} />
             </div>
 
             <p className="mt-1 text-muted-foreground">

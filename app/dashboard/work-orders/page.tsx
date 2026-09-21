@@ -3,9 +3,15 @@
 import * as React from "react";
 import { Plus, Search, X } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { ClickableWorkOrder } from "@/components/clickable-work-order";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -57,25 +63,6 @@ const workOrders = [
     updated: "3 hours ago",
   },
 ];
-
-function getStatusClass(status: string) {
-  switch (status) {
-    case "Repairing":
-      return "border-blue-500/30 bg-blue-500/10 text-blue-500";
-
-    case "Waiting":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-500";
-
-    case "Testing":
-      return "border-purple-500/30 bg-purple-500/10 text-purple-500";
-
-    case "Completed":
-      return "border-green-500/30 bg-green-500/10 text-green-500";
-
-    default:
-      return "";
-  }
-}
 
 export default function WorkOrdersPage() {
   const [search, setSearch] = React.useState("");
@@ -201,39 +188,39 @@ export default function WorkOrdersPage() {
 
           <div className="mt-3 space-y-1">
             {filteredWorkOrders.map((order) => (
-              <div
+              <ClickableWorkOrder
                 key={order.id}
-                className="flex items-center justify-between gap-6 rounded-lg p-4 transition-colors hover:bg-muted/50"
+                id={order.id}
+                className="p-4"
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium">{order.id}</span>
+                <div className="flex items-center justify-between gap-6">
+                  < div className="min-w-0 flex-1" >
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium">{order.id}</span>
 
-                    <span className="text-sm text-muted-foreground">
-                      {order.customer}
+                      <span className="text-sm text-muted-foreground">
+                        {order.customer}
+                      </span>
+                    </div>
+
+                    <div className="mt-1 flex items-center gap-2 text-sm">
+                      <span>{order.device}</span>
+                      <span className="text-muted-foreground">•</span>
+                      <span className="text-muted-foreground">
+                        {order.issue}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-4">
+                    <span className="hidden text-sm text-muted-foreground md:block">
+                      {order.updated}
                     </span>
-                  </div>
 
-                  <div className="mt-1 flex items-center gap-2 text-sm">
-                    <span>{order.device}</span>
-                    <span className="text-muted-foreground">•</span>
-                    <span className="text-muted-foreground">{order.issue}</span>
+                    <StatusBadge status={order.status} />
                   </div>
                 </div>
-
-                <div className="flex shrink-0 items-center gap-4">
-                  <span className="hidden text-sm text-muted-foreground md:block">
-                    {order.updated}
-                  </span>
-
-                  <Badge
-                    variant="outline"
-                    className={getStatusClass(order.status)}
-                  >
-                    {order.status}
-                  </Badge>
-                </div>
-              </div>
+              </ClickableWorkOrder>
             ))}
 
             {filteredWorkOrders.length === 0 && (
@@ -261,8 +248,8 @@ export default function WorkOrdersPage() {
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </CardContent >
+      </Card >
+    </div >
   );
 }

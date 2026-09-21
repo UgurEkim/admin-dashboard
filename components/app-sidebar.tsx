@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { LayoutDashboard, Settings, Server, Wrench } from "lucide-react";
+import {
+  LayoutDashboard,
+  Wrench,
+  Users,
+  Settings,
+  Gamepad2,
+} from "lucide-react";
 
 import {
   Sidebar,
@@ -28,7 +34,12 @@ const items = [
   {
     title: "Customers",
     url: "/dashboard/customers",
-    icon: Server,
+    icon: Users,
+  },
+  {
+    title: "Devices",
+    url: "/dashboard/devices",
+    icon: Gamepad2,
   },
   {
     title: "Settings",

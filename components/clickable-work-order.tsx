@@ -5,9 +5,14 @@ import { useRouter } from "next/navigation";
 interface ClickableWorkOrderProps {
   id: string;
   children: React.ReactNode;
+  className?: string;
 }
 
-export function ClickableWorkOrder({ id, children }: ClickableWorkOrderProps) {
+export function ClickableWorkOrder({
+  id,
+  children,
+  className = "",
+}: ClickableWorkOrderProps) {
   const router = useRouter();
 
   const navigate = () => {
@@ -16,7 +21,7 @@ export function ClickableWorkOrder({ id, children }: ClickableWorkOrderProps) {
 
   return (
     <div
-      className="cursor-pointer rounded-lg p-3 transition-colors hover:bg-muted/50"
+      className={`cursor-pointer rounded-lg transition-colors hover:bg-muted/50 ${className}`}
       tabIndex={0}
       role="link"
       onClick={navigate}
