@@ -1,11 +1,16 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  Wrench,
-  Users,
-  Settings,
+  ChevronRight,
   Gamepad2,
+  LayoutDashboard,
+  Settings,
+  Users,
+  Wrench,
 } from "lucide-react";
+import { useState } from "react";
 
 import {
   Sidebar,
@@ -41,14 +46,29 @@ const items = [
     url: "/dashboard/devices",
     icon: Gamepad2,
   },
+];
+
+const toolItems = [
   {
-    title: "Settings",
-    url: "/dashboard/settings",
-    icon: Settings,
+    title: "Controller Tools",
+    url: "/dashboard/tools/controller",
+  },
+  {
+    title: "UART Terminal",
+    url: "/dashboard/tools/uart",
+  },
+  {
+    title: "Multimeter",
+    url: "/dashboard/tools/multimeter",
   },
 ];
 
 export function AppSidebar() {
+  const pathname = usePathname();
+  const isToolsPage = pathname.startsWith("/dashboard/tools");
+
+  const [toolsOpen, setToolsOpen] = useState(isToolsPage);
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -80,6 +100,45 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Tools"
+                  onClick={() => setToolsOpen((open) => !open)}
+                >
+                  <Wrench />
+                  <span>Tools</span>
+
+                  <ChevronRight
+                    className={`ml-auto transition-transform ${toolsOpen ? "rotate-90" : ""
+                      }`}
+                  />
+                </SidebarMenuButton>
+
+                {toolsOpen && (
+                  <div className="ml-7 mt-1 space-y-1 border-l pl-3">
+                    {toolItems.map((tool) => (
+                      <SidebarMenuButton
+                        key={tool.title}
+                        size="sm"
+                        render={<Link href={tool.url} />}
+                      >
+                        <span>{tool.title}</span>
+                      </SidebarMenuButton>
+                    ))}
+                  </div>
+                )}
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Settings"
+                  render={<Link href="/dashboard/settings" />}
+                >
+                  <Settings />
+                  <span>Settings</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
