@@ -1,4 +1,6 @@
-export const workOrders = [
+import type { WorkOrder } from "@/data/types";
+
+export const workOrders: WorkOrder[] = [
   {
     id: "WO-00142",
     customerId: "CUS-00124",
@@ -135,5 +137,20 @@ export const workOrders = [
     technicianNotes: "Cooling system cleaned and console tested under load.",
     createdAt: "2025-02-01T09:15:00",
     updatedAt: "2025-02-03T13:45:00",
+  },
+  {
+    id: "WO-00121",
+    customerId: "CUS-00124",
+    deviceId: "DEV-00087",
+    issue: "Overheating",
+    status: "Completed",
+    description:
+      "PlayStation 5 was experiencing excessive heat during extended gameplay.",
+    diagnosis:
+      "Dust accumulation and degraded thermal material were found during inspection.",
+    technicianNotes:
+      "Internal cleaning and thermal maintenance completed. Console tested successfully.",
+    createdAt: "2025-01-15T10:00:00",
+    updatedAt: "2025-01-20T14:30:00",
   },
 ];

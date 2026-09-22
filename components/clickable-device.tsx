@@ -16,7 +16,7 @@ export function ClickableDevice({ id, children }: ClickableDeviceProps) {
 
   return (
     <div
-      className="cursor-pointer rounded-lg p-3 transition-colors hover:bg-muted/50"
+      className="cursor-pointer rounded-lg p-3 transition-colors hover:bg-muted/50 flex items-center justify-between"
       tabIndex={0}
       role="link"
       onClick={navigate}

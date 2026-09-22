@@ -2,16 +2,17 @@
 
 import * as React from "react";
 import { Plus, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 
-import { ClickableWorkOrder } from "@/components/clickable-work-order";
+import {
+  customerRepository,
+  deviceRepository,
+  workOrderRepository,
+} from "@/data";
+import type { WorkOrder, WorkOrderStatus } from "@/data";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -20,59 +21,58 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  createCustomerMap,
+  createDeviceMap,
+} from "@/lib/data-maps";
 
-const workOrders = [
-  {
-    id: "WO-00142",
-    customer: "Mark Jansen",
-    device: "PlayStation 5",
-    issue: "No HDMI output",
-    status: "Repairing",
-    updated: "12 minutes ago",
-  },
-  {
-    id: "WO-00141",
-    customer: "Lisa de Vries",
-    device: "DualSense",
-    issue: "Stick drift",
-    status: "Testing",
-    updated: "28 minutes ago",
-  },
-  {
-    id: "WO-00140",
-    customer: "Thomas Bakker",
-    device: "PlayStation 4",
-    issue: "No power",
-    status: "Waiting",
-    updated: "1 hour ago",
-  },
-  {
-    id: "WO-00139",
-    customer: "Sophie Peters",
-    device: "DualSense",
-    issue: "USB-C replacement",
-    status: "Completed",
-    updated: "2 hours ago",
-  },
-  {
-    id: "WO-00138",
-    customer: "Daan Smit",
-    device: "PlayStation 5",
-    issue: "Overheating",
-    status: "Completed",
-    updated: "3 hours ago",
-  },
-];
+interface WorkOrderListItem extends Pick<WorkOrder, "id" | "issue"> {
+  customer: string;
+  device: string;
+  status: WorkOrderStatus;
+  updated: string;
+}
 
 export default function WorkOrdersPage() {
+  const router = useRouter();
+
+  const [workOrders, setWorkOrders] = React.useState<WorkOrderListItem[]>([]);
   const [search, setSearch] = React.useState("");
   const [status, setStatus] = React.useState("all");
   const [device, setDevice] = React.useState("all");
 
+  React.useEffect(() => {
+    async function loadWorkOrders() {
+      const [orders, customers, devices] = await Promise.all([
+        workOrderRepository.getAll(),
+        customerRepository.getAll(),
+        deviceRepository.getAll(),
+      ]);
+
+      const customerMap = createCustomerMap(customers);
+      const deviceMap = createDeviceMap(devices);
+
+      const mappedWorkOrders = orders.map((order) => ({
+        id: order.id,
+        customer:
+          customerMap.get(order.customerId)?.name ?? "Unknown customer",
+        device: deviceMap.get(order.deviceId)?.name ?? "Unknown device",
+        issue: order.issue,
+        status: order.status,
+        updated: new Date(order.updatedAt).toLocaleString(),
+      }));
+
+      setWorkOrders(mappedWorkOrders);
+    }
+
+    loadWorkOrders();
+  }, []);
+
   const filteredWorkOrders = workOrders.filter((order) => {
-    const searchValue = search.toLowerCase();
+    const searchValue = search.toLowerCase().trim();
 
     const matchesSearch =
+      searchValue === "" ||
       order.id.toLowerCase().includes(searchValue) ||
       order.customer.toLowerCase().includes(searchValue) ||
       order.device.toLowerCase().includes(searchValue) ||
@@ -85,7 +85,8 @@ export default function WorkOrdersPage() {
     return matchesSearch && matchesStatus && matchesDevice;
   });
 
-  const hasFilters = search !== "" || status !== "all" || device !== "all";
+  const hasFilters =
+    search.trim() !== "" || status !== "all" || device !== "all";
 
   function clearFilters() {
     setSearch("");
@@ -95,6 +96,7 @@ export default function WorkOrdersPage() {
 
   return (
     <div className="space-y-8">
+      {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Work Orders</h1>
@@ -110,146 +112,155 @@ export default function WorkOrdersPage() {
         </Button>
       </div>
 
+      {/* Filters */}
       <Card>
-        <CardHeader>
-          <CardTitle>All Work Orders</CardTitle>
-        </CardHeader>
+        <CardContent className="flex flex-col gap-4 p-6 md:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 
-        <CardContent>
-          <div className="flex flex-col gap-3 md:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by work order, customer, device, or issue..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="pl-9"
+            />
+          </div>
 
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search work orders..."
-                className="pl-9"
-              />
+          <Select
+            value={status}
+            onValueChange={(value) => {
+              if (value !== null) {
+                setStatus(value);
+              }
+            }}
+          >
+            <SelectTrigger className="w-full md:w-44">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="Repairing">Repairing</SelectItem>
+              <SelectItem value="Waiting">Waiting</SelectItem>
+              <SelectItem value="Testing">Testing</SelectItem>
+              <SelectItem value="Completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={device}
+            onValueChange={(value) => {
+              if (value !== null) {
+                setDevice(value);
+              }
+            }}
+          >
+            <SelectTrigger className="w-full md:w-44">
+              <SelectValue placeholder="Device" />
+            </SelectTrigger>
+
+            <SelectContent>
+              <SelectItem value="all">All devices</SelectItem>
+              <SelectItem value="PlayStation 5">PlayStation 5</SelectItem>
+              <SelectItem value="PlayStation 4 Pro">
+                PlayStation 4 Pro
+              </SelectItem>
+              <SelectItem value="DualSense">DualSense</SelectItem>
+              <SelectItem value="Xbox Series X">Xbox Series X</SelectItem>
+              <SelectItem value="Nintendo Switch OLED">
+                Nintendo Switch OLED
+              </SelectItem>
+              <SelectItem value="Nintendo Switch">Nintendo Switch</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              onClick={clearFilters}
+              className="shrink-0"
+            >
+              <X />
+              Clear
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Results */}
+      <div className="text-sm text-muted-foreground">
+        Showing {filteredWorkOrders.length} of {workOrders.length} work orders
+      </div>
+
+      {/* Work Order table */}
+      <Card>
+        <CardContent className="p-0">
+          {filteredWorkOrders.length === 0 ? (
+            <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
+              <p className="font-medium">No work orders found</p>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                Try adjusting your search or filters.
+              </p>
             </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b">
+                  <tr className="text-left text-sm text-muted-foreground">
+                    <th className="px-6 py-4 font-medium">Work Order</th>
+                    <th className="px-6 py-4 font-medium">Customer</th>
+                    <th className="px-6 py-4 font-medium">Device</th>
+                    <th className="px-6 py-4 font-medium">Issue</th>
+                    <th className="px-6 py-4 font-medium">Status</th>
+                    <th className="px-6 py-4 font-medium">Updated</th>
+                  </tr>
+                </thead>
 
-            <Select
-              value={status}
-              onValueChange={(value) => {
-                if (value !== null) {
-                  setStatus(value);
-                }
-              }}
-            >
-              <SelectTrigger className="w-full md:w-44">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
+                <tbody>
+                  {filteredWorkOrders.map((order) => (
+                    <tr
+                      key={order.id}
+                      className="cursor-pointer border-b transition-colors hover:bg-muted/50 last:border-0"
+                      tabIndex={0}
+                      role="link"
+                      onClick={() =>
+                        router.push(`/dashboard/work-orders/${order.id}`)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          router.push(
+                            `/dashboard/work-orders/${order.id}`,
+                          );
+                        }
+                      }}
+                    >
+                      <td className="px-6 py-4">
+                        <span className="font-medium">{order.id}</span>
+                      </td>
 
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="Repairing">Repairing</SelectItem>
-                <SelectItem value="Waiting">Waiting</SelectItem>
-                <SelectItem value="Testing">Testing</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
+                      <td className="px-6 py-4">{order.customer}</td>
 
-            <Select
-              value={device}
-              onValueChange={(value) => {
-                if (value !== null) {
-                  setDevice(value);
-                }
-              }}
-            >
-              <SelectTrigger className="w-full md:w-44">
-                <SelectValue placeholder="Device" />
-              </SelectTrigger>
+                      <td className="px-6 py-4">{order.device}</td>
 
-              <SelectContent>
-                <SelectItem value="all">All devices</SelectItem>
-                <SelectItem value="PlayStation 5">PlayStation 5</SelectItem>
-                <SelectItem value="PlayStation 4">PlayStation 4</SelectItem>
-                <SelectItem value="DualSense">DualSense</SelectItem>
-              </SelectContent>
-            </Select>
+                      <td className="px-6 py-4">{order.issue}</td>
 
-            {hasFilters && (
-              <Button
-                variant="ghost"
-                onClick={clearFilters}
-                className="shrink-0"
-              >
-                <X />
-                Clear
-              </Button>
-            )}
-          </div>
+                      <td className="px-6 py-4">
+                        <StatusBadge status={order.status} />
+                      </td>
 
-          <div className="mt-4 text-sm text-muted-foreground">
-            Showing {filteredWorkOrders.length} of {workOrders.length} work
-            orders
-          </div>
-
-          <div className="mt-3 space-y-1">
-            {filteredWorkOrders.map((order) => (
-              <ClickableWorkOrder
-                key={order.id}
-                id={order.id}
-                className="p-4"
-              >
-                <div className="flex items-center justify-between gap-6">
-                  < div className="min-w-0 flex-1" >
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium">{order.id}</span>
-
-                      <span className="text-sm text-muted-foreground">
-                        {order.customer}
-                      </span>
-                    </div>
-
-                    <div className="mt-1 flex items-center gap-2 text-sm">
-                      <span>{order.device}</span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="text-muted-foreground">
-                        {order.issue}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-4">
-                    <span className="hidden text-sm text-muted-foreground md:block">
-                      {order.updated}
-                    </span>
-
-                    <StatusBadge status={order.status} />
-                  </div>
-                </div>
-              </ClickableWorkOrder>
-            ))}
-
-            {filteredWorkOrders.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="rounded-full bg-muted p-3">
-                  <Search className="size-5 text-muted-foreground" />
-                </div>
-
-                <h3 className="mt-4 font-medium">No work orders found</h3>
-
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Try changing your search or filters.
-                </p>
-
-                {hasFilters && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-4"
-                    onClick={clearFilters}
-                  >
-                    Clear filters
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </CardContent >
-      </Card >
-    </div >
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                        {order.updated}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

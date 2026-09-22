@@ -1,7 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 
+import type { WorkOrderStatus } from "@/data";
+
 interface StatusBadgeProps {
-    status: string;
+    status: WorkOrderStatus;
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {

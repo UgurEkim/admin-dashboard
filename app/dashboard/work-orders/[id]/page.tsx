@@ -9,65 +9,15 @@ import {
   Wrench,
 } from "lucide-react";
 
+import {
+  customerRepository,
+  deviceRepository,
+  workOrderRepository,
+} from "@/data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
-
-const workOrders = [
-  {
-    id: "WO-00142",
-    customer: "Mark Jansen",
-    customerId: "CUS-00124",
-    device: "PlayStation 5",
-    deviceId: "DEV-00087",
-    issue: "No HDMI output",
-    status: "Repairing",
-    created: "14 March 2025",
-    updated: "12 minutes ago",
-    diagnosis:
-      "The HDMI port and surrounding HDMI circuitry require further inspection. Repair is currently in progress.",
-    notes:
-      "Initial inspection completed. HDMI port area is being inspected and tested.",
-    email: "mark.jansen@example.com",
-    description:
-      "PlayStation 5 powers on but produces no HDMI output. Initial inspection indicates a possible HDMI port or HDMI circuit issue.",
-  },
-  {
-    id: "WO-00121",
-    customer: "Mark Jansen",
-    customerId: "CUS-00124",
-    device: "PlayStation 5",
-    deviceId: "DEV-00087",
-    issue: "Overheating",
-    status: "Completed",
-    created: "5 January 2025",
-    updated: "2 months ago",
-    diagnosis:
-      "The console was overheating due to accumulated dust and degraded thermal material.",
-    notes:
-      "Internal cleaning and thermal maintenance completed. Console tested successfully.",
-    email: "mark.jansen@example.com",
-    description:
-      "PlayStation 5 was overheating during extended use. Internal cleaning and thermal maintenance were performed.",
-  },
-  {
-    id: "WO-00135",
-    customer: "Mark Jansen",
-    customerId: "CUS-00124",
-    device: "DualSense",
-    deviceId: "DEV-00052",
-    issue: "Stick drift",
-    status: "Completed",
-    created: "1 March 2025",
-    updated: "2 weeks ago",
-    diagnosis:
-      "The analog stick module was showing unwanted movement and inconsistent centering.",
-    notes: "Stick module replaced and controller tested successfully.",
-    email: "mark.jansen@example.com",
-    description:
-      "DualSense controller reported unwanted movement from the analog stick. Stick module replacement was performed.",
-  },
-];
+import { formatDateTime } from "@/lib/format-date-time";
 
 export default async function WorkOrderDetailPage({
   params,
@@ -76,11 +26,21 @@ export default async function WorkOrderDetailPage({
 }) {
   const { id } = await params;
 
-  const workOrder = workOrders.find((workOrder) => workOrder.id === id);
+  const workOrder = await workOrderRepository.getById(id);
 
   if (!workOrder) {
     notFound();
   }
+
+  const [customer, device] = await Promise.all([
+    customerRepository.getById(workOrder.customerId),
+    deviceRepository.getById(workOrder.deviceId),
+  ]);
+
+  if (!customer || !device) {
+    notFound();
+  }
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -99,13 +59,15 @@ export default async function WorkOrderDetailPage({
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold tracking-tight">{id}</h1>
+              <h1 className="text-3xl font-bold tracking-tight">
+                {workOrder.id}
+              </h1>
 
               <StatusBadge status={workOrder.status} />
             </div>
 
             <p className="mt-1 text-muted-foreground">
-              {workOrder.device} · {workOrder.issue}
+              {device.name} · {workOrder.issue}
             </p>
           </div>
 
@@ -146,7 +108,15 @@ export default async function WorkOrderDetailPage({
                 <p className="text-sm font-medium">Technician Notes</p>
 
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {workOrder.notes}
+                  {workOrder.technicianNotes}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium">Description</p>
+
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {workOrder.description}
                 </p>
               </div>
             </CardContent>
@@ -167,10 +137,10 @@ export default async function WorkOrderDetailPage({
                   </div>
 
                   <div>
-                    <p className="font-medium">Repair started</p>
+                    <p className="font-medium">Work order updated</p>
 
                     <p className="text-sm text-muted-foreground">
-                      Today · 12 minutes ago
+                      {formatDateTime(workOrder.updatedAt)}
                     </p>
                   </div>
                 </div>
@@ -185,9 +155,7 @@ export default async function WorkOrderDetailPage({
                   <div>
                     <p className="font-medium">Work order created</p>
 
-                    <p className="text-sm text-muted-foreground">
-                      Today · 10:24
-                    </p>
+                    <p className="text-sm text-muted-foreground">{formatDateTime(workOrder.createdAt)}</p>
                   </div>
                 </div>
               </div>
@@ -210,10 +178,10 @@ export default async function WorkOrderDetailPage({
 
                 <div>
                   <Link
-                    href={`/dashboard/customers/${workOrder.customerId}`}
+                    href={`/dashboard/customers/${customer.id}`}
                     className="font-medium hover:underline"
                   >
-                    {workOrder.customer}
+                    {customer.name}
                   </Link>
 
                   <p className="text-sm text-muted-foreground">Customer</p>
@@ -223,7 +191,9 @@ export default async function WorkOrderDetailPage({
               <div className="flex items-center gap-3 text-sm">
                 <Mail className="size-4 text-muted-foreground" />
 
-                <span className="text-muted-foreground">{workOrder.email}</span>
+                <span className="text-muted-foreground">
+                  {customer.email}
+                </span>
               </div>
 
               <Button variant="outline" className="w-full">
@@ -243,18 +213,19 @@ export default async function WorkOrderDetailPage({
                 <span className="text-sm text-muted-foreground">
                   Work Order
                 </span>
-                <Link
-                  href={`/dashboard/devices/${workOrder.deviceId}`}
-                  className="text-sm font-medium hover:underline"
-                >
-                  {workOrder.deviceId}
-                </Link>
+
+                <span className="text-sm font-medium">{workOrder.id}</span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Device</span>
 
-                <span className="text-sm font-medium">{workOrder.device}</span>
+                <Link
+                  href={`/dashboard/devices/${device.id}`}
+                  className="text-sm font-medium hover:underline"
+                >
+                  {device.name}
+                </Link>
               </div>
 
               <div className="flex items-center justify-between">
@@ -262,14 +233,14 @@ export default async function WorkOrderDetailPage({
 
                 <span className="flex items-center gap-2 text-sm">
                   <CalendarDays className="size-4 text-muted-foreground" />
-                  {workOrder.created}
+                  {formatDateTime(workOrder.createdAt)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Updated</span>
 
-                <span className="text-sm">{workOrder.updated}</span>
+                <span className="text-sm">{formatDateTime(workOrder.updatedAt)}</span>
               </div>
             </CardContent>
           </Card>

@@ -1,204 +1,183 @@
 "use client";
 
-import * as React from "react";
-import { Plus, Search, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Search } from "lucide-react";
+import { isActiveWorkOrderStatus } from "@/lib/work-order-status";
+import {
+  customerRepository,
+  workOrderRepository,
+} from "@/data";
+import type { Customer } from "@/data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { formatRelativeTime } from "@/lib/format-relative-time";
+import { sortWorkOrdersByUpdatedAt } from "@/lib/sort-work-orders";
 
-const customers = [
-  {
-    id: "CUS-00124",
-    name: "Mark Jansen",
-    email: "mark.jansen@example.com",
-    phone: "+31 6 12345678",
-    workOrders: 4,
-    activeRepairs: 1,
-    lastActivity: "12 minutes ago",
-  },
-  {
-    id: "CUS-00123",
-    name: "Lisa de Vries",
-    email: "lisa.devries@example.com",
-    phone: "+31 6 23456789",
-    workOrders: 2,
-    activeRepairs: 1,
-    lastActivity: "28 minutes ago",
-  },
-  {
-    id: "CUS-00122",
-    name: "Thomas Bakker",
-    email: "thomas.bakker@example.com",
-    phone: "+31 6 34567890",
-    workOrders: 6,
-    activeRepairs: 1,
-    lastActivity: "1 hour ago",
-  },
-  {
-    id: "CUS-00121",
-    name: "Sophie Peters",
-    email: "sophie.peters@example.com",
-    phone: "+31 6 45678901",
-    workOrders: 3,
-    activeRepairs: 0,
-    lastActivity: "2 hours ago",
-  },
-  {
-    id: "CUS-00120",
-    name: "Daan Smit",
-    email: "daan.smit@example.com",
-    phone: "+31 6 56789012",
-    workOrders: 8,
-    activeRepairs: 0,
-    lastActivity: "3 hours ago",
-  },
-];
+interface CustomerListItem
+  extends Pick<Customer, "id" | "name" | "email" | "phone"> {
+  workOrders: number;
+  activeRepairs: number;
+  lastActivity: string;
+}
 
 export default function CustomersPage() {
-  const [search, setSearch] = React.useState("");
   const router = useRouter();
-  const filteredCustomers = customers.filter((customer) => {
-    const searchValue = search.toLowerCase();
 
-    return (
-      customer.name.toLowerCase().includes(searchValue) ||
-      customer.email.toLowerCase().includes(searchValue) ||
-      customer.phone.toLowerCase().includes(searchValue) ||
-      customer.id.toLowerCase().includes(searchValue)
-    );
-  });
+  const [customers, setCustomers] = useState<CustomerListItem[]>([]);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    async function loadCustomers() {
+      const [customerRecords, workOrders] = await Promise.all([
+        customerRepository.getAll(),
+        workOrderRepository.getAll(),
+      ]);
+
+      const mappedCustomers = customerRecords.map((customer) => {
+        const customerWorkOrders = sortWorkOrdersByUpdatedAt(
+          workOrders.filter(
+            (workOrder) => workOrder.customerId === customer.id,
+          ),
+        );
+
+        const activeRepairs = customerWorkOrders.filter((workOrder) =>
+          isActiveWorkOrderStatus(workOrder.status),
+        ).length;
+
+        const latestWorkOrder = customerWorkOrders[0];
+
+        return {
+          id: customer.id,
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
+          workOrders: customerWorkOrders.length,
+          activeRepairs,
+          lastActivity: latestWorkOrder
+            ? formatRelativeTime(latestWorkOrder.updatedAt)
+            : formatRelativeTime(customer.createdAt),
+        };
+      });
+
+      setCustomers(mappedCustomers);
+    }
+
+    loadCustomers();
+  }, []);
+
+  const filteredCustomers = useMemo(() => {
+    const query = search.toLowerCase().trim();
+
+    return customers.filter((customer) => {
+      return (
+        query === "" ||
+        customer.name.toLowerCase().includes(query) ||
+        customer.email.toLowerCase().includes(query) ||
+        customer.phone.toLowerCase().includes(query) ||
+        customer.id.toLowerCase().includes(query)
+      );
+    });
+  }, [customers, search]);
 
   return (
     <div className="space-y-8">
-      {/* Page header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
-
-          <p className="mt-1 text-muted-foreground">
-            Manage your customers and their repair history.
-          </p>
-        </div>
-
-        <Button>
-          <Plus />
-          New Customer
-        </Button>
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
+        <p className="mt-1 text-muted-foreground">
+          Manage customers and view their repair history.
+        </p>
       </div>
-
-      {/* Customer list */}
+      {/* Filters */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="relative max-w-md">
+        <CardContent className="flex flex-col gap-4 p-6 md:flex-row">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-
             <Input
+              placeholder="Search by name, email, phone, or ID..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search customers..."
               className="pl-9"
             />
           </div>
+        </CardContent>
+      </Card>
+      {/* Results */}
+      <div className="text-sm text-muted-foreground">
+        Showing {filteredCustomers.length} of {customers.length} customers
+      </div>
+      {/* Customer table */}
+      <Card>
+        <CardContent className="p-0">
+          {filteredCustomers.length === 0 ? (
+            <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
+              <p className="font-medium">No customers found</p>
 
-          <div className="mt-6 overflow-hidden rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Work Orders</TableHead>
-                  <TableHead>Active Repairs</TableHead>
-                  <TableHead>Last Activity</TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {filteredCustomers.map((customer) => (
-                  <TableRow
-                    key={customer.id}
-                    className="cursor-pointer"
-                    onClick={() =>
-                      router.push(`/dashboard/customers/${customer.id}`)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        router.push(`/dashboard/customers/${customer.id}`);
+              <p className="mt-1 text-sm text-muted-foreground">
+                Try adjusting your search.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b">
+                  <tr className="text-left text-sm text-muted-foreground">
+                    <th className="px-6 py-4 font-medium">Customer</th>
+                    <th className="px-6 py-4 font-medium">Email</th>
+                    <th className="px-6 py-4 font-medium">Phone</th>
+                    <th className="px-6 py-4 font-medium">Work Orders</th>
+                    <th className="px-6 py-4 font-medium">Active Repairs</th>
+                    <th className="px-6 py-4 font-medium">Last Activity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCustomers.map((customer) => (
+                    <tr
+                      key={customer.id}
+                      className="cursor-pointer border-b transition-colors hover:bg-muted/50 last:border-0"
+                      tabIndex={0}
+                      role="link"
+                      onClick={() =>
+                        router.push(
+                          `/dashboard/customers/${customer.id}`,
+                        )
                       }
-                    }}
-                    tabIndex={0}
-                  >
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{customer.name}</div>
-
-                        <div className="text-sm text-muted-foreground">
-                          {customer.email}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          router.push(
+                            `/dashboard/customers/${customer.id}`,
+                          );
+                        }
+                      }}
+                    >
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-medium">{customer.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {customer.id}
+                          </p>
                         </div>
-                      </div>
-                    </TableCell>
+                      </td>
+                      <td className="px-6 py-4">{customer.email}</td>
+                      <td className="px-6 py-4">{customer.phone}</td>
+                      <td className="px-6 py-4">
+                        {customer.workOrders}
+                      </td>
 
-                    <TableCell className="text-muted-foreground">
-                      {customer.phone}
-                    </TableCell>
-
-                    <TableCell>{customer.workOrders}</TableCell>
-
-                    <TableCell>
-                      {customer.activeRepairs > 0 ? (
-                        <Badge
-                          variant="outline"
-                          className="border-blue-500/30 bg-blue-500/10 text-blue-500"
-                        >
-                          {customer.activeRepairs} active
-                        </Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          None
-                        </span>
-                      )}
-                    </TableCell>
-
-                    <TableCell className="text-muted-foreground">
-                      {customer.lastActivity}
-                    </TableCell>
-                  </TableRow>
-                ))}
-
-                {filteredCustomers.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-48">
-                      <div className="flex flex-col items-center justify-center text-center">
-                        <div className="rounded-full bg-muted p-3">
-                          <Users className="size-5 text-muted-foreground" />
-                        </div>
-
-                        <h3 className="mt-4 font-medium">No customers found</h3>
-
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Try changing your search.
-                        </p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="mt-4 text-sm text-muted-foreground">
-            Showing {filteredCustomers.length} of {customers.length} customers
-          </div>
+                      <td className="px-6 py-4">
+                        {customer.activeRepairs}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                        {customer.lastActivity}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

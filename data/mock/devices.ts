@@ -1,4 +1,6 @@
-export const devices = [
+import type { Device } from "@/data/types";
+
+export const devices: Device[] = [
   {
     id: "DEV-00087",
     customerId: "CUS-00124",

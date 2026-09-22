@@ -1,57 +1,24 @@
 import Link from "next/link";
 import { ArrowLeft, Calendar, ClipboardList, Hash, User } from "lucide-react";
+import { notFound } from "next/navigation";
 
+import {
+  customerRepository,
+  deviceRepository,
+  workOrderRepository,
+} from "@/data";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { formatDateTime } from "@/lib/format-date-time";
+import { sortWorkOrdersByUpdatedAt } from "@/lib/sort-work-orders";
 
-import { notFound } from "next/navigation";
-import { StatusBadge } from "@/components/status-badge";
-
-const devices = [
-  {
-    id: "DEV-00087",
-    name: "PlayStation 5",
-    serialNumber: "S01A23456789",
-    category: "Console",
-    model: "CFI-1216A",
-    customer: "Mark Jansen",
-    customerId: "CUS-00124",
-    created: "14 March 2025",
-    workOrders: [
-      {
-        id: "WO-00142",
-        issue: "No HDMI output",
-        status: "Repairing",
-        updated: "12 minutes ago",
-      },
-      {
-        id: "WO-00121",
-        issue: "Overheating",
-        status: "Completed",
-        updated: "2 months ago",
-      },
-    ],
-  },
-  {
-    id: "DEV-00052",
-    name: "DualSense",
-    serialNumber: "CFI-ZCT1W-12345",
-    category: "Controller",
-    model: "CFI-ZCT1W",
-    customer: "Mark Jansen",
-    customerId: "CUS-00124",
-    created: "8 January 2025",
-    workOrders: [
-      {
-        id: "WO-00135",
-        issue: "Stick drift",
-        status: "Completed",
-        updated: "2 weeks ago",
-      },
-    ],
-  },
-];
 export default async function DeviceDetailPage({
   params,
 }: {
@@ -59,13 +26,21 @@ export default async function DeviceDetailPage({
 }) {
   const { id } = await params;
 
-  const device = devices.find((device) => device.id === id);
+  const device = await deviceRepository.getById(id);
 
   if (!device) {
     notFound();
   }
 
-  const workOrders = device.workOrders;
+  const [customer, workOrders] = await Promise.all([
+    customerRepository.getById(device.customerId),
+    workOrderRepository.getByDeviceId(device.id),
+  ]);
+
+  if (!customer) {
+    notFound();
+  }
+  const sortedWorkOrders = sortWorkOrdersByUpdatedAt(workOrders);
   return (
     <div className="space-y-6">
       <Button
@@ -73,7 +48,9 @@ export default async function DeviceDetailPage({
         size="sm"
         className="mb-2 -ml-2"
         nativeButton={false}
-        render={<Link href="/dashboard/customers/CUS-00124" />}
+        render={
+          <Link href={`/dashboard/customers/${customer.id}`} />
+        }
       >
         <ArrowLeft />
         Back to Customer
@@ -120,7 +97,9 @@ export default async function DeviceDetailPage({
 
               <div>
                 <p className="text-sm font-medium">Model</p>
-                <p className="text-sm text-muted-foreground">{device.model}</p>
+                <p className="text-sm text-muted-foreground">
+                  {device.model}
+                </p>
               </div>
             </div>
 
@@ -141,7 +120,7 @@ export default async function DeviceDetailPage({
               <div>
                 <p className="text-sm font-medium">Added</p>
                 <p className="text-sm text-muted-foreground">
-                  {device.created}
+                  {formatDateTime(device.createdAt)}
                 </p>
               </div>
             </div>
@@ -155,15 +134,15 @@ export default async function DeviceDetailPage({
 
           <CardContent>
             <Link
-              href={`/dashboard/customers/${device.customerId}`}
+              href={`/dashboard/customers/${customer.id}`}
               className="flex items-center gap-3 rounded-md p-2 -m-2 hover:bg-muted"
             >
               <User className="size-4 text-muted-foreground" />
 
               <div>
-                <p className="text-sm font-medium">{device.customer}</p>
+                <p className="text-sm font-medium">{customer.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {device.customerId}
+                  {customer.id}
                 </p>
               </div>
             </Link>
@@ -178,7 +157,7 @@ export default async function DeviceDetailPage({
 
         <CardContent>
           <div className="divide-y">
-            {workOrders.map((workOrder) => (
+            {sortedWorkOrders.map((workOrder) => (
               <Link
                 key={workOrder.id}
                 href={`/dashboard/work-orders/${workOrder.id}`}
@@ -194,7 +173,7 @@ export default async function DeviceDetailPage({
                 <div className="flex items-center gap-3">
                   <StatusBadge status={workOrder.status} />
                   <span className="text-sm text-muted-foreground">
-                    {workOrder.updated}
+                    {formatDateTime(workOrder.updatedAt)}
                   </span>
                 </div>
               </Link>
