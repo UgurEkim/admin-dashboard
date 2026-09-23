@@ -1,13 +1,15 @@
+export interface SerialOptions {
+  baudRate: number;
+  dataBits: 7 | 8;
+  stopBits: 1 | 2;
+  parity: "none" | "even" | "odd";
+  flowControl: "none" | "hardware";
+}
+
 export interface MeterPort {
   readable: ReadableStream<Uint8Array> | null;
   writable: WritableStream<Uint8Array> | null;
-  open(options: {
-    baudRate: number;
-    dataBits: number;
-    stopBits: number;
-    parity: "none";
-    flowControl: "none";
-  }): Promise<void>;
+  open(options: SerialOptions): Promise<void>;
   close(): Promise<void>;
 }
 export interface SerialApi {
@@ -35,20 +37,28 @@ export class SerialConnection {
   private onLost: (error: Error) => void;
   private timeout: number;
 
-  constructor(port: MeterPort, onLost: (error: Error) => void, timeout = 3000) {
+  constructor(
+    port: MeterPort,
+    onLost: (error: Error) => void,
+    timeout = 3000,
+    private options: SerialOptions = {
+      baudRate: 115200,
+      dataBits: 8,
+      stopBits: 1,
+      parity: "none",
+      flowControl: "none",
+    },
+    private encoding = "windows-1252",
+    private ignoreLine: (line: string) => boolean = (line) =>
+      /^OK$/i.test(line),
+  ) {
     this.port = port;
     this.onLost = onLost;
     this.timeout = timeout;
   }
 
   async open() {
-    await this.port.open({
-      baudRate: 115200,
-      dataBits: 8,
-      stopBits: 1,
-      parity: "none",
-      flowControl: "none",
-    });
+    await this.port.open(this.options);
     if (this.closed) {
       await this.port.close();
       throw new Error("Connection cancelled.");
@@ -70,7 +80,7 @@ export class SerialConnection {
   }
 
   private async readLoop() {
-    const decoder = new TextDecoder("windows-1252");
+    const decoder = new TextDecoder(this.encoding);
     try {
       while (!this.closed && this.reader) {
         const { value, done } = await this.reader.read();
@@ -90,8 +100,7 @@ export class SerialConnection {
         while ((end = this.buffer.indexOf("\n")) !== -1) {
           const line = this.buffer.slice(0, end).trim();
           this.buffer = this.buffer.slice(end + 1);
-          // Some OWON firmware emits repeated OK acknowledgments for setters.
-          if (!line || /^OK$/i.test(line)) continue;
+          if (!line || this.ignoreLine(line)) continue;
           this.pending?.resolve(line);
           this.pending = null;
         }

@@ -1,13 +1,18 @@
 import {
   configurationCommand,
-  normalizeRange,
   parseFunction,
   parseIdentity,
   parseReading,
   rangeOptions,
-  units,
-} from "./protocol";
+} from "./owon-protocol";
+import { normalizeRange, units } from "./protocol";
 import { SerialConnection } from "./serial";
+import {
+  measurementCapability,
+  type MeterCapabilities,
+  type MultimeterAdapter,
+  type MultimeterDefinition,
+} from "./adapter";
 import type {
   MeasurementMode,
   MeasurementType,
@@ -19,10 +24,50 @@ import type {
 // Hardware testing showed the first conversion can remain stale beyond one second.
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 3000));
 
-export class OwonMeter {
+export const owonCapabilities: MeterCapabilities = {
+  measurements: (
+    [
+      "Voltage",
+      "Resistance",
+      "Current",
+      "Continuity",
+      "Diode",
+      "Capacitance",
+      "Frequency",
+      "Period",
+      "Temperature",
+    ] as const
+  ).map((type) => ({
+    type,
+    modes: type === "Voltage" || type === "Current" ? ["DC", "AC"] : ["DC"],
+    ranges: { DC: rangeOptions(type, "DC"), AC: rangeOptions(type, "AC") },
+    autoRange: rangeOptions(type, "DC").length > 0,
+  })),
+  temperature: {
+    probes: [
+      { value: "PT100", label: "PT100" },
+      { value: "KITS90", label: "K-type thermocouple" },
+    ],
+    units: [
+      { value: "C", label: "Celsius (°C)" },
+      { value: "F", label: "Fahrenheit (°F)" },
+      { value: "K", label: "Kelvin (K)" },
+    ],
+  },
+};
+
+export class OwonMeter implements MultimeterAdapter {
+  readonly capabilities = owonCapabilities;
   private connection: SerialConnection;
   constructor(connection: SerialConnection) {
     this.connection = connection;
+  }
+
+  open() {
+    return this.connection.open();
+  }
+  close() {
+    return this.connection.close();
   }
 
   identify() {
@@ -78,6 +123,9 @@ export class OwonMeter {
   }
 
   configure(type: MeasurementType, mode: MeasurementMode) {
+    if (!measurementCapability(this.capabilities, type)?.modes.includes(mode)) {
+      return Promise.reject(new Error("Unsupported OWON measurement mode."));
+    }
     return this.connection.transaction(async () => {
       await this.connection.write(configurationCommand(type, mode));
       await settle();
@@ -114,6 +162,16 @@ export class OwonMeter {
   }
 
   setTemperature(probe: TemperatureProbe, unit: TemperatureUnit) {
+    if (
+      !this.capabilities.temperature?.probes.some(
+        (option) => option.value === probe,
+      ) ||
+      !this.capabilities.temperature.units.some(
+        (option) => option.value === unit,
+      )
+    ) {
+      return Promise.reject(new Error("Unsupported OWON temperature setting."));
+    }
     return this.connection.transaction(async () => {
       await this.connection.write(`TEMP:RTD:TYPE ${probe}`);
       await this.connection.write(`TEMP:RTD:UNIT ${unit}`);
@@ -151,3 +209,19 @@ export class OwonMeter {
     });
   }
 }
+
+export const owonXdm1041: MultimeterDefinition = {
+  id: "owon-xdm1041",
+  label: "OWON XDM1041",
+  connectionHint: "Choose the meter’s USB-SERIAL CH340 port (currently COM3).",
+  capabilities: owonCapabilities,
+  initialSettings: {
+    type: "Voltage",
+    mode: "DC",
+    autoRange: true,
+    range: "",
+    temperatureProbe: "PT100",
+    temperatureUnit: "C",
+  },
+  create: (port, onLost) => new OwonMeter(new SerialConnection(port, onLost)),
+};

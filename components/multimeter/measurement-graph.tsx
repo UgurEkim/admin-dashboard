@@ -24,8 +24,12 @@ export function MeasurementGraph({
     if (!values.length) return null;
     const bounds = graphBounds(values);
     const startTime = Date.parse(history[0].timestamp);
-    const duration = Math.max(Date.parse(history[history.length - 1].timestamp) - startTime, 1);
-    const xPosition = (reading: Measurement) => 125 + (Date.parse(reading.timestamp) - startTime) / duration * 835;
+    const duration = Math.max(
+      Date.parse(history[history.length - 1].timestamp) - startTime,
+      1,
+    );
+    const xPosition = (reading: Measurement) =>
+      125 + ((Date.parse(reading.timestamp) - startTime) / duration) * 835;
     const points = history.map((reading) =>
       reading.value === null
         ? null
@@ -72,10 +76,10 @@ export function MeasurementGraph({
                 : "Start the measurement to begin plotting data."}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="w-full">
               <svg
                 viewBox="0 0 1000 330"
-                className="h-80 min-w-[700px] w-full"
+                className="block h-auto min-h-80 w-full"
                 role="img"
                 aria-label={`${graphTitle} measurement graph, value in ${currentUnit} against time. Overloads appear as gaps.`}
               >
@@ -124,7 +128,10 @@ export function MeasurementGraph({
                     );
                     const x =
                       125 +
-                      ((Date.parse(graph.history[sampleIndex].timestamp) - graph.startTime) / graph.duration) * 835;
+                      ((Date.parse(graph.history[sampleIndex].timestamp) -
+                        graph.startTime) /
+                        graph.duration) *
+                        835;
                     return (
                       <g key={index}>
                         <line

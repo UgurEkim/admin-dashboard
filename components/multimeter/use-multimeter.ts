@@ -1,7 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { OwonMeter } from "@/lib/multimeter/owon";
-import { browserSerial, SerialConnection } from "@/lib/multimeter/serial";
-import { formatValue, units } from "@/lib/multimeter/protocol";
+import {
+  assertSupportedSettings,
+  supportedMode,
+  type MultimeterAdapter,
+} from "@/lib/multimeter/adapter";
+import {
+  getMultimeterDefinition,
+  multimeterAdapters,
+} from "@/lib/multimeter/registry";
+import { browserSerial } from "@/lib/multimeter/serial";
+import {
+  formatValue,
+  units,
+  isSameSelection,
+  type MeterSelection,
+} from "@/lib/multimeter/protocol";
 import type {
   DeviceIdentity,
   Measurement,
@@ -12,16 +25,11 @@ import type {
   TemperatureUnit,
 } from "@/lib/multimeter/types";
 
-const initialSettings: MeterSettings = {
-  type: "Voltage",
-  mode: "DC",
-  autoRange: true,
-  range: "",
-  temperatureProbe: "PT100",
-  temperatureUnit: "C",
-};
+const initialSettings = multimeterAdapters[0].initialSettings;
 
 export function useMultimeter() {
+  const [adapterId, setAdapterId] = useState(multimeterAdapters[0].id);
+  const definition = getMultimeterDefinition(adapterId);
   const [settings, setSettings] = useState(initialSettings);
   const [identity, setIdentity] = useState<DeviceIdentity | null>(null);
   const [connected, setConnected] = useState(false);
@@ -31,8 +39,7 @@ export function useMultimeter() {
   const [current, setCurrent] = useState<Measurement | null>(null);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [interval, setIntervalMs] = useState(1000);
-  const connection = useRef<SerialConnection | null>(null);
-  const meter = useRef<OwonMeter | null>(null);
+  const meter = useRef<MultimeterAdapter | null>(null);
   const generation = useRef(0);
   const busyRef = useRef(false);
   const sequence = useRef(0);
@@ -43,11 +50,12 @@ export function useMultimeter() {
     alive.current = true;
     return () => {
       alive.current = false;
-      void connection.current?.close();
+      void meter.current?.close();
     };
   }, []);
 
   function applySettings(next: MeterSettings) {
+    assertSupportedSettings(definition.capabilities, next);
     const previous = settingsRef.current;
     if (
       previous.type !== next.type ||
@@ -75,8 +83,7 @@ export function useMultimeter() {
     setError("");
     try {
       if (connected) {
-        await connection.current?.close();
-        connection.current = null;
+        await meter.current?.close();
         meter.current = null;
         setConnected(false);
         setIdentity(null);
@@ -90,22 +97,21 @@ export function useMultimeter() {
       // Must happen directly in the button gesture so the browser can show its chooser.
       const port = await serial.requestPort();
       if (!alive.current) return;
-      const transport = new SerialConnection(port, (failure) => {
-        if (!alive.current || connection.current !== transport) return;
+      const device = definition.create(port, (failure) => {
+        if (!alive.current || meter.current !== device) return;
         generation.current++;
         setRunning(false);
         setConnected(false);
         setIdentity(null);
         setError(failure.message);
       });
-      await connection.current?.close();
-      connection.current = transport;
-      await transport.open();
-      const device = new OwonMeter(transport);
+      await meter.current?.close();
+      meter.current = device;
+      await device.open();
       const deviceIdentity = await device.identify();
       const actual = await device.settings();
       if (!alive.current) {
-        await transport.close();
+        await device.close();
         return;
       }
       meter.current = device;
@@ -114,9 +120,9 @@ export function useMultimeter() {
       setMeasurements([]);
       setIdentity(deviceIdentity);
       setConnected(true);
+      setRunning(true);
     } catch (failure) {
-      await connection.current?.close();
-      connection.current = null;
+      await meter.current?.close();
       meter.current = null;
       if (alive.current) {
         setConnected(false);
@@ -137,8 +143,13 @@ export function useMultimeter() {
     }
   }
 
-  async function change(work: (device: OwonMeter) => Promise<MeterSettings>) {
+  async function change(
+    selection: MeterSelection,
+    work: (device: MultimeterAdapter) => Promise<MeterSettings>,
+  ) {
     if (busyRef.current || !connected || !meter.current) return;
+    // Check before stopping the poller or clearing readings, including when paused.
+    if (isSameSelection(settingsRef.current, selection)) return;
     stop();
     busyRef.current = true;
     setBusy(true);
@@ -149,6 +160,7 @@ export function useMultimeter() {
       if (alive.current) {
         applySettings(next);
         setMeasurements([]);
+        setRunning(true);
       }
     } catch (failure) {
       if (alive.current)
@@ -181,6 +193,7 @@ export function useMultimeter() {
         const sample = await device.sample();
         if (cancelled || generation.current !== token || !alive.current) return;
         if (sample) {
+          assertSupportedSettings(device.capabilities, sample.settings);
           const previous = settingsRef.current;
           const changed =
             previous.type !== sample.settings.type ||
@@ -267,12 +280,24 @@ export function useMultimeter() {
     );
     const link = document.createElement("a");
     link.href = url;
-    link.download = `owon-${new Date().toISOString().replaceAll(":", "-")}.csv`;
+    link.download = `${adapterId}-${new Date().toISOString().replaceAll(":", "-")}.csv`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   return {
+    definition,
+    adapters: multimeterAdapters,
+    selectAdapter: (id: string) => {
+      if (connected || busyRef.current) return;
+      const next = getMultimeterDefinition(id);
+      setAdapterId(id);
+      settingsRef.current = next.initialSettings;
+      setSettings(next.initialSettings);
+      setCurrent(null);
+      setMeasurements([]);
+      setError("");
+    },
     measurementType: settings.type,
     measurementMode: settings.mode,
     settings,
@@ -290,13 +315,24 @@ export function useMultimeter() {
     graphTitle,
     interval,
     selectMeasurementType: (type: MeasurementType) =>
-      change((device) => device.configure(type, settings.mode)),
+      change({ kind: "type", type }, (device) =>
+        device.configure(
+          type,
+          supportedMode(device.capabilities, type, settingsRef.current.mode),
+        ),
+      ),
     selectMeasurementMode: (mode: MeasurementMode) =>
-      change((device) => device.configure(settings.type, mode)),
+      change({ kind: "mode", mode }, (device) =>
+        device.configure(settingsRef.current.type, mode),
+      ),
     selectRange: (value: string) =>
-      change((device) => device.setRange(settings, value)),
+      change({ kind: "range", range: value }, (device) =>
+        device.setRange(settingsRef.current, value),
+      ),
     selectTemperature: (probe: TemperatureProbe, unit: TemperatureUnit) =>
-      change((device) => device.setTemperature(probe, unit)),
+      change({ kind: "temperature", probe, unit }, (device) =>
+        device.setTemperature(probe, unit),
+      ),
     setIntervalMs,
     toggleConnection,
     start: () => {

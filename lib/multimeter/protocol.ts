@@ -1,9 +1,4 @@
-import type {
-  DeviceIdentity,
-  MeasurementMode,
-  MeasurementType,
-  MeterSettings,
-} from "./types";
+import type { MeasurementMode, MeasurementType, MeterSettings } from "./types";
 
 export const units: Record<MeasurementType, string> = {
   Voltage: "V",
@@ -17,108 +12,65 @@ export const units: Record<MeasurementType, string> = {
   Temperature: "°C",
 };
 
-export function rangeOptions(
-  type: MeasurementType,
-  mode: MeasurementMode,
-): string[] {
-  switch (type) {
-    case "Voltage":
-      return mode === "DC"
-        ? ["50 mV", "500 mV", "5 V", "50 V", "500 V", "1000 V"]
-        : ["500 mV", "5 V", "50 V", "500 V", "750 V"];
-    case "Current":
-      return ["500 µA", "5 mA", "50 mA", "500 mA", "5 A", "10 A"];
-    case "Resistance":
-      return ["500 Ω", "5 kΩ", "50 kΩ", "500 kΩ", "5 MΩ", "50 MΩ"];
-    case "Capacitance":
-      return ["50 nF", "500 nF", "5 µF", "50 µF", "500 µF", "5 mF", "50 mF"];
-    default:
-      return [];
-  }
-}
-
-export function configurationCommand(
-  type: MeasurementType,
-  mode: MeasurementMode,
-): string {
-  const commands: Record<MeasurementType, string> = {
-    Voltage: `VOLT:${mode}`,
-    Current: `CURR:${mode}`,
-    Resistance: "RES",
-    Continuity: "CONT",
-    Diode: "DIOD",
-    Capacitance: "CAP",
-    Frequency: "FREQ",
-    Period: "PER",
-    Temperature: "TEMP:RTD",
-  };
-  return `CONF:${commands[type]}`;
-}
-
-export function parseFunction(
-  raw: string,
-): Pick<MeterSettings, "type" | "mode"> {
-  const value = raw
-    .replaceAll('"', "")
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, " ");
-  const names: Record<string, MeasurementType> = {
-    VOLT: "Voltage",
-    CURR: "Current",
-    RES: "Resistance",
-    CONT: "Continuity",
-    DIOD: "Diode",
-    CAP: "Capacitance",
-    FREQ: "Frequency",
-    PER: "Period",
-    TEMP: "Temperature",
-  };
-  const type = names[value.split(" ")[0]];
-  if (!type) throw new Error(`Unsupported meter function: ${raw}`);
-  return { type, mode: value.endsWith(" AC") ? "AC" : "DC" };
-}
-
-export function parseIdentity(raw: string): DeviceIdentity {
-  const [brand, model, serial, firmware] = raw
-    .split(",")
-    .map((part) => part.trim());
-  if (
-    brand?.toUpperCase() !== "OWON" ||
-    model?.toUpperCase() !== "XDM1041" ||
-    !serial ||
-    !firmware
-  ) {
-    throw new Error(
-      "The selected device is not an OWON XDM1041. Select its USB serial port.",
-    );
-  }
-  return { model, serial, firmware };
-}
-
-export function parseReading(raw: string): {
-  value: number | null;
-  overload: boolean;
-} {
-  const text = raw.trim();
-  if (/^[+-]?(?:OL|OVERLOAD|INF(?:INITY)?)$/i.test(text))
-    return { value: null, overload: true };
-  if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:E[+-]?\d+)?$/i.test(text))
-    throw new Error(`Invalid reading from meter: ${text}`);
-  const value = Number(text);
-  // XDM1041 reports 1E+9 for an open circuit/overrange, including a missing probe.
-  if (!Number.isFinite(value) || Math.abs(value) >= 1e9)
-    return { value: null, overload: true };
-  return { value, overload: false };
-}
-
 export function normalizeRange(raw: string): string {
-  return raw
+  const text = raw
     .replaceAll('"', "")
     .replace(/\s+/g, "")
-    .replace(/(?:¦¸|Ω|Ω|ohm)/gi, "Ω")
-    .replace(/(?:¦Ì|u|μ)/g, "µ")
-    .replace("KΩ", "kΩ");
+    // Accept UTF-8 symbols decoded as Windows-1252 and older OWON symbols.
+    .replace(/Î©|â„¦|¦¸|Ω|ohms?/gi, "Ω")
+    .replace(/Âµ|Î¼|¦Ì|μ/g, "µ");
+  const match =
+    /^([+]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)([pnuµmkKM]?)(Ω|V|A|F|Hz|s)$/.exec(
+      text,
+    );
+  if (!match) return `unknown:${text}`;
+  const [, magnitude, prefix, unit] = match;
+  const factors: Record<string, number> = {
+    "": 1,
+    p: 1e-12,
+    n: 1e-9,
+    u: 1e-6,
+    µ: 1e-6,
+    m: 1e-3,
+    k: 1e3,
+    K: 1e3,
+    M: 1e6,
+  };
+  const value = Number(magnitude) * factors[prefix];
+  if (!Number.isFinite(value) || value <= 0) return `unknown:${text}`;
+  return `${Number(value.toPrecision(12))}:${unit}`;
+}
+
+export type MeterSelection =
+  | { kind: "type"; type: MeasurementType }
+  | { kind: "mode"; mode: MeasurementMode }
+  | { kind: "range"; range: string }
+  | {
+      kind: "temperature";
+      probe: MeterSettings["temperatureProbe"];
+      unit: MeterSettings["temperatureUnit"];
+    };
+
+export function isSameSelection(
+  settings: MeterSettings,
+  selection: MeterSelection,
+): boolean {
+  switch (selection.kind) {
+    case "type":
+      return settings.type === selection.type;
+    case "mode":
+      return settings.mode === selection.mode;
+    case "range":
+      return selection.range === "auto"
+        ? settings.autoRange
+        : !settings.autoRange &&
+            normalizeRange(settings.range) === normalizeRange(selection.range);
+    case "temperature":
+      return (
+        settings.temperatureProbe === selection.probe &&
+        settings.temperatureUnit === selection.unit
+      );
+  }
 }
 
 export function formatValue(value: number | null): string {

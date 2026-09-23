@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:multimeter": "node --test tests/multimeter.test.mjs"
+    "test:multimeter": "node --test tests/multimeter.test.mjs",
+    "test:uart": "node --test tests/uart.test.mjs",
+    "test:tools": "node --test tests/multimeter.test.mjs tests/uart.test.mjs tests/ps5-decoder.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

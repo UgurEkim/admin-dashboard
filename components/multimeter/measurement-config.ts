@@ -10,19 +10,6 @@ import {
   VoltageIcon,
 } from "./measurement-icons";
 
-export const measurementTypes: MeasurementType[] = [
-  "Voltage",
-  "Resistance",
-  "Current",
-  "Continuity",
-  "Diode",
-  "Capacitance",
-  "Frequency",
-  "Period",
-  "Temperature",
-];
-export const usesAcDcMode = (type: MeasurementType) =>
-  type === "Voltage" || type === "Current";
 export const measurementIcons: Record<
   MeasurementType,
   (props: MeasurementModeIconProps) => ReactNode

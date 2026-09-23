@@ -11,7 +11,8 @@ export type MeasurementType =
 
 export type MeasurementMode = "DC" | "AC";
 export type TemperatureUnit = "C" | "F" | "K";
-export type TemperatureProbe = "KITS90" | "PT100";
+// Adapter-defined identifier; the adapter supplies the user-facing label.
+export type TemperatureProbe = string;
 
 export interface MeterSettings {
   type: MeasurementType;
@@ -23,6 +24,7 @@ export interface MeterSettings {
 }
 
 export interface DeviceIdentity {
+  manufacturer: string;
   model: string;
   serial: string;
   firmware: string;
