@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": [
+    "../next-env.d.ts",
+    "../app/dashboard/tools/multimeter/**/*.tsx",
+    "../components/multimeter/**/*.ts",
+    "../components/multimeter/**/*.tsx",
+    "../lib/multimeter/**/*.ts"
+  ],
+  "exclude": ["../node_modules"]
+}
