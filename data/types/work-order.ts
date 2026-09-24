@@ -11,4 +11,14 @@ export interface WorkOrder {
   technicianNotes: string;
   createdAt: string;
   updatedAt: string;
+  service?: string;
+  serviceId?: string;
+  intakeCondition?: string;
+  accessories?: string;
+  dueDate?: string;
+  estimate?: string;
+  finalCost?: string;
+  paymentStatus?: string;
+  collectedAt?: string;
+  history?: { status: WorkOrderStatus; at: string }[];
 }

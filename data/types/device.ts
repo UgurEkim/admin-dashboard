@@ -6,4 +6,6 @@ export interface Device {
   model: string;
   serialNumber: string;
   createdAt: string;
+  brand?: string;
+  notes?: string;
 }
