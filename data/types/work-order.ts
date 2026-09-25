@@ -1,5 +1,10 @@
 export type WorkOrderStatus = "Repairing" | "Waiting" | "Testing" | "Completed";
 
+export interface IntakePhoto {
+  id: string;
+  name: string;
+  dataUrl: string;
+}
 export interface WorkOrder {
   id: string;
   customerId: string;
@@ -15,6 +20,8 @@ export interface WorkOrder {
   serviceId?: string;
   intakeCondition?: string;
   accessories?: string;
+  accessCode?: string;
+  intakePhotos?: IntakePhoto[];
   dueDate?: string;
   estimate?: string;
   finalCost?: string;

@@ -6,14 +6,13 @@ import {
   workOrderRepository,
   type WorkOrderStatus,
 } from "@/data";
-import {
-  getDefaultPhoneCountryCode,
-  phoneCountryCodes,
-} from "@/lib/customer-settings";
+import { phoneCountryCodes } from "@/lib/customer-settings";
 import { PostalLookup } from "@/components/address/postal-lookup";
 import { Button } from "@/components/ui/button";
 import { Modal, Picker, fieldClass } from "./controls";
 import type { Records } from "./use-records";
+import { workOrderStatuses } from "@/lib/work-order-status";
+import { IntakePhotos } from "./intake-photos";
 
 export type Kind = "customers" | "devices" | "work-orders";
 export const singular = {
@@ -21,7 +20,7 @@ export const singular = {
   devices: "device",
   "work-orders": "work order",
 };
-export const statuses = ["Waiting", "Repairing", "Testing", "Completed"];
+export const statuses = workOrderStatuses;
 export const choices = (values: readonly string[]) =>
   values.map((value) => ({ value, label: value }));
 
@@ -31,12 +30,14 @@ export function Editor({
   preset = {},
   data,
   onClose,
+  onDeleted,
 }: {
   kind: Kind;
   id?: string;
   preset?: Record<string, string>;
   data: Records;
   onClose: () => void;
+  onDeleted?: () => void;
 }) {
   const existing =
     kind === "customers"
@@ -44,11 +45,19 @@ export function Editor({
       : kind === "devices"
         ? data.devices.find((d) => d.id === id)
         : data.orders.find((o) => o.id === id);
+  const existingOrder =
+    kind === "work-orders" ? data.orders.find((o) => o.id === id) : undefined;
+  const [photos, setPhotos] = useState(existingOrder?.intakePhotos ?? []);
+  const [photosBusy, setPhotosBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [showAccessCode, setShowAccessCode] = useState(false);
   const [form, setForm] = useState<Record<string, string>>(() => ({
     name: "",
     email: "",
     phone: "",
-    phoneCountryCode: getDefaultPhoneCountryCode(),
+    phoneCountryCode: data.settings.defaultPhoneCountryCode,
     country: "Netherlands",
     street: "",
     houseNumber: "",
@@ -70,6 +79,7 @@ export function Editor({
     technicianNotes: "",
     intakeCondition: "",
     accessories: "",
+    accessCode: "",
     dueDate: "",
     estimate: "",
     finalCost: "",
@@ -137,6 +147,7 @@ export function Editor({
         min={type === "number" ? "0" : undefined}
         step={type === "number" ? "0.01" : undefined}
         required={required}
+        autoComplete={key === "accessCode" ? "off" : undefined}
         value={form[key] ?? ""}
         onChange={(e) => set(key, e.target.value)}
       />
@@ -155,6 +166,7 @@ export function Editor({
   );
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving || photosBusy) return;
     setError("");
     setSaving(true);
     try {
@@ -201,6 +213,8 @@ export function Editor({
           serviceId: f.serviceId,
           intakeCondition: f.intakeCondition,
           accessories: f.accessories,
+          accessCode: f.accessCode,
+          intakePhotos: photos,
           dueDate: f.dueDate,
           estimate: f.estimate,
           finalCost: f.finalCost,
@@ -225,7 +239,7 @@ export function Editor({
     <Modal
       title={(id ? "Edit " : "New ") + singular[kind]}
       onClose={() => {
-        if (!saving) onClose();
+        if (!saving && !photosBusy && !deleteBusy && !confirmDelete) onClose();
       }}
     >
       <form className="space-y-4" onSubmit={submit}>
@@ -280,7 +294,14 @@ export function Editor({
                   .join(" · "),
               }))}
               onChange={(v) =>
-                setForm((f) => ({ ...f, customerId: v, deviceId: "" }))
+                setForm((f) => ({
+                  ...f,
+                  customerId: v,
+                  deviceId: "",
+                  service: "",
+                  serviceId: "",
+                  estimate: "",
+                }))
               }
             />
             {!data.customers.length && (
@@ -399,18 +420,57 @@ export function Editor({
                 {area("description", "Issue details")}
                 <Picker
                   label="Status *"
+                  statusPicker
                   value={form.status}
                   options={choices(statuses)}
                   onChange={(v) => set("status", v)}
                 />
                 {field("dueDate", "Target completion date", false, "date")}
-                <details className="rounded-lg border p-3">
+                <details className="rounded-lg border p-3" open={!id}>
                   <summary className="cursor-pointer text-sm font-medium">
                     Intake condition and accessories
                   </summary>
                   <div className="mt-4 space-y-4">
                     {area("intakeCondition", "Condition on arrival")}
                     {area("accessories", "Accessories received")}
+                    <p className="text-xs text-muted-foreground">
+                      The device serial number is recorded on the linked device
+                      profile. Note existing damage and any accessories left
+                      with you.
+                    </p>
+                    {field(
+                      "accessCode",
+                      "Device access code / PIN (optional)",
+                      false,
+                      showAccessCode ? "text" : "password",
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAccessCode((v) => !v)}
+                      >
+                        {showAccessCode ? "Hide code" : "Show code"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => set("accessCode", "")}
+                      >
+                        Clear code
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Stored in the workshop database. Clear the code when the
+                      device is returned. It is excluded from backups.
+                    </p>
+                    <IntakePhotos
+                      photos={photos}
+                      onChange={setPhotos}
+                      onBusy={setPhotosBusy}
+                    />
                   </div>
                 </details>
                 <details className="rounded-lg border p-3" open={!!id}>
@@ -439,16 +499,30 @@ export function Editor({
             {error}
           </p>
         )}
-        <div className="flex justify-end gap-2 border-t pt-4">
+        <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+          {id && kind === "work-orders" && (
+            <Button
+              type="button"
+              variant="destructive"
+              className="mr-auto"
+              disabled={saving || photosBusy}
+              onClick={() => {
+                setDeleteError("");
+                setConfirmDelete(true);
+              }}
+            >
+              Delete work order
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"
-            disabled={saving}
+            disabled={saving || photosBusy}
             onClick={onClose}
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={saving}>
+          <Button type="submit" disabled={saving || photosBusy}>
             {saving
               ? "Saving…"
               : id
@@ -457,6 +531,60 @@ export function Editor({
           </Button>
         </div>
       </form>
+      {confirmDelete && id && (
+        <Modal
+          title="Delete work order?"
+          onClose={() => {
+            if (!deleteBusy) setConfirmDelete(false);
+          }}
+        >
+          <p className="text-sm">
+            Are you sure you want to delete {id} — {existingOrder?.issue}? Its
+            repair history and intake photos will also be deleted. This cannot
+            be undone. The customer and device will be kept.
+          </p>
+          {deleteError && (
+            <p role="alert" className="mt-3 text-sm text-destructive">
+              {deleteError}
+            </p>
+          )}
+          <div className="mt-6 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleteBusy}
+              onClick={() => setConfirmDelete(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteBusy}
+              onClick={async () => {
+                if (deleteBusy) return;
+                setDeleteBusy(true);
+                setDeleteError("");
+                try {
+                  await workOrderRepository.remove(id);
+                  onClose();
+                  onDeleted?.();
+                } catch (error) {
+                  setDeleteError(
+                    error instanceof Error
+                      ? error.message
+                      : "Could not delete work order. Please try again.",
+                  );
+                } finally {
+                  setDeleteBusy(false);
+                }
+              }}
+            >
+              {deleteBusy ? "Deleting…" : "Delete work order"}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </Modal>
   );
 }

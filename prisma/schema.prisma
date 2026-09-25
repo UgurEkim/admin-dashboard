@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client"
+  output = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Customer {
+  id String @id
+  name String
+  email String
+  phone String
+  phoneCountryCode String @default("+31")
+  street String @default("")
+  postalCode String @default("")
+  houseNumber String @default("")
+  city String @default("")
+  country String @default("")
+  notes String @default("")
+  createdAt String
+  devices Device[]
+  orders WorkOrder[]
+}
+
+model Device {
+  id String @id
+  customerId String
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  name String
+  category String
+  model String
+  serialNumber String
+  serialKey String? @unique
+  brand String @default("")
+  notes String @default("")
+  createdAt String
+  orders WorkOrder[]
+  @@index([customerId])
+}
+
+model WorkOrder {
+  id String @id
+  customerId String
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  deviceId String
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  issue String
+  status String
+  description String
+  diagnosis String
+  technicianNotes String
+  createdAt String
+  updatedAt String
+  service String @default("")
+  serviceId String @default("")
+  intakeCondition String @default("")
+  accessories String @default("")
+  accessCode String @default("")
+  intakePhotos Json @default("[]")
+  history Json @default("[]")
+  dueDate String @default("")
+  estimate String @default("")
+  finalCost String @default("")
+  paymentStatus String @default("Unpaid")
+  collectedAt String @default("")
+  @@index([customerId])
+  @@index([deviceId])
+  @@index([status])
+}
+
+model CatalogItem {
+  id String @id
+  kind String
+  name String
+  categoryId String @default("")
+  brandId String @default("")
+  modelId String @default("")
+  price String @default("")
+  description String @default("")
+}
+
+model Setting {
+  key String @id
+  value String
+}
+
+model Sequence {
+  prefix String @id
+  value Int
+}
+
+model ImportReceipt {
+  fingerprint String @id
+  importedAt DateTime @default(now())
+}

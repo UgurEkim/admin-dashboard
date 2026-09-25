@@ -1,62 +1,55 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import {
-  getAll as getCatalog,
-  type CatalogItem,
-} from "@/data/repositories/catalog";
-import {
-  customerRepository,
-  deviceRepository,
-  workOrderRepository,
-  type Customer,
-  type Device,
-  type WorkOrder,
-} from "@/data";
-
-export type Records = {
-  customers: Customer[];
-  devices: Device[];
-  orders: WorkOrder[];
-  catalog: CatalogItem[];
-};
+import { useEffect, useState, useCallback, useRef } from "react";
+import { getSnapshot } from "@/data/repositories/api";
+import type { Snapshot } from "@/data/schemas";
+export type Records = Snapshot;
 export function useRecords() {
   const [data, setData] = useState<Records>({
     customers: [],
     devices: [],
     orders: [],
     catalog: [],
+    settings: { defaultPhoneCountryCode: "+31" },
+    sequences: {},
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const generation = useRef(0);
   const refresh = useCallback(async () => {
+    const current = ++generation.current;
     try {
-      const [customers, devices, orders] = await Promise.all([
-        customerRepository.getAll(),
-        deviceRepository.getAll(),
-        workOrderRepository.getAll(),
-      ]);
-      setData({ customers, devices, orders, catalog: getCatalog() });
-      setError("");
+      const next = await getSnapshot();
+      if (current === generation.current) {
+        setData(next);
+        setError("");
+      }
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Could not load records.",
-      );
+      if (current === generation.current)
+        setError(
+          error instanceof Error ? error.message : "Could not load records.",
+        );
     } finally {
-      setLoading(false);
+      if (current === generation.current) setLoading(false);
     }
   }, []);
   useEffect(() => {
-    // Hydrate from browser storage after mount; it is unavailable during SSR.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void refresh();
+    const requestGeneration = generation;
     const reload = () => {
       void refresh();
     };
-    window.addEventListener("storage", reload);
+    reload();
     window.addEventListener("repair-admin:repository-change", reload);
+    window.addEventListener("focus", reload);
+    const channel =
+      typeof BroadcastChannel !== "undefined"
+        ? new BroadcastChannel("repair-admin-records")
+        : null;
+    if (channel) channel.onmessage = reload;
     return () => {
-      window.removeEventListener("storage", reload);
+      requestGeneration.current++;
       window.removeEventListener("repair-admin:repository-change", reload);
+      window.removeEventListener("focus", reload);
+      channel?.close();
     };
   }, [refresh]);
   return { data, loading, error, refresh };

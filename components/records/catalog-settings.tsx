@@ -1,7 +1,6 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import {
-  getDefaultPhoneCountryCode,
   setDefaultPhoneCountryCode,
   phoneCountryCodes,
   type PhoneCountryCode,
@@ -30,6 +29,7 @@ export function CatalogSettings() {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [deleting, setDeleting] = useState<CatalogItem | null>(null);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [code, setCode] = useState("");
   const label = (id?: string) =>
@@ -54,15 +54,18 @@ export function CatalogSettings() {
           .includes(query.toLowerCase()),
     )
     .sort((a, b) => a.name.localeCompare(b.name));
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!editing) return;
+    if (!editing || busy) return;
+    setBusy(true);
     try {
-      save(editing);
+      await save(editing);
       setEditing(null);
       setMessage("");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Could not save.");
+    } finally {
+      setBusy(false);
     }
   }
   function exportPrices() {
@@ -91,15 +94,15 @@ export function CatalogSettings() {
         <CardContent className="max-w-sm p-5">
           <Picker
             label="Default phone country code"
-            value={code || getDefaultPhoneCountryCode()}
+            value={code || data.settings.defaultPhoneCountryCode}
             options={phoneCountryCodes.map((value) => ({
               value,
               label: value,
             }))}
-            onChange={(v) => {
+            onChange={async (v) => {
               if (!v) return;
               try {
-                setDefaultPhoneCountryCode(v as PhoneCountryCode);
+                await setDefaultPhoneCountryCode(v as PhoneCountryCode);
                 setCode(v);
                 setMessage("");
               } catch {
@@ -249,7 +252,9 @@ export function CatalogSettings() {
             (data.catalog.some((i) => i.id === editing.id) ? "Edit " : "Add ") +
             (kind === "service" ? "service / price" : kind)
           }
-          onClose={() => setEditing(null)}
+          onClose={() => {
+            if (!busy) setEditing(null);
+          }}
         >
           <form className="space-y-4" onSubmit={submit}>
             <label className="block space-y-2 text-sm font-medium">
@@ -348,17 +353,25 @@ export function CatalogSettings() {
               <Button
                 type="button"
                 variant="outline"
+                disabled={busy}
                 onClick={() => setEditing(null)}
               >
                 Cancel
               </Button>
-              <Button type="submit">Save</Button>
+              <Button type="submit" disabled={busy}>
+                {busy ? "Saving..." : "Save"}
+              </Button>
             </div>
           </form>
         </Modal>
       )}
       {deleting && (
-        <Modal title="Remove catalog entry?" onClose={() => setDeleting(null)}>
+        <Modal
+          title="Remove catalog entry?"
+          onClose={() => {
+            if (!busy) setDeleting(null);
+          }}
+        >
           <p className="text-sm">
             Remove {deleting.name} from future selections? Saved repair records
             keep their existing details.
@@ -369,20 +382,29 @@ export function CatalogSettings() {
             </p>
           )}
           <div className="mt-5 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setDeleting(null)}>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => setDeleting(null)}
+            >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
+              disabled={busy}
+              onClick={async () => {
+                if (busy) return;
+                setBusy(true);
                 try {
-                  remove(deleting.id);
+                  await remove(deleting.id);
                   setDeleting(null);
                   setMessage("");
                 } catch (e) {
                   setMessage(
                     e instanceof Error ? e.message : "Could not remove entry.",
                   );
+                } finally {
+                  setBusy(false);
                 }
               }}
             >

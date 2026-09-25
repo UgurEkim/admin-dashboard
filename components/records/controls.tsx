@@ -1,4 +1,9 @@
 "use client";
+import {
+  getWorkOrderStatusStyle,
+  workOrderStatuses,
+} from "@/lib/work-order-status";
+import type { WorkOrderStatus } from "@/data";
 
 import { useId, type ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
@@ -58,16 +63,22 @@ export function Picker({
   options,
   onChange,
   disabled = false,
+  statusPicker = false,
 }: {
   label: string;
   value: string;
   options: Choice[];
   onChange: (value: string) => void;
   disabled?: boolean;
+  statusPicker?: boolean;
 }) {
   const id = useId();
+  const tone = (value: string) =>
+    statusPicker && workOrderStatuses.includes(value as WorkOrderStatus)
+      ? getWorkOrderStatusStyle(value as WorkOrderStatus).badge
+      : "";
   return (
-    <div className="min-w-0 space-y-2">
+    <div className="flex min-w-0 flex-col gap-2">
       <label htmlFor={id} className="block text-sm font-medium">
         {label}
       </label>
@@ -82,7 +93,7 @@ export function Picker({
           <Combobox.Input
             id={id}
             placeholder="Type to search…"
-            className={fieldClass + " pr-9"}
+            className={fieldClass + " h-[38px] py-0 pr-9 " + tone(value)}
           />
           <Combobox.Trigger
             aria-label={"Open " + label}
@@ -102,7 +113,10 @@ export function Picker({
                   <Combobox.Item
                     key={item.value}
                     value={item}
-                    className="cursor-default rounded-md px-3 py-2 text-sm data-highlighted:bg-accent data-selected:font-semibold"
+                    className={
+                      "cursor-default rounded-md px-3 py-2 text-sm data-highlighted:bg-accent data-selected:font-semibold " +
+                      tone(item.value)
+                    }
                   >
                     {item.label}
                   </Combobox.Item>

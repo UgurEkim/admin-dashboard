@@ -2,11 +2,26 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Plus, ArrowLeft, Download } from "lucide-react";
+import {
+  Plus,
+  ArrowLeft,
+  Download,
+  Check,
+  Clock3,
+  Wrench,
+  FlaskConical,
+  CheckCircle2,
+  Pencil,
+  ClipboardList,
+  Eye,
+  Search,
+  RotateCcw,
+} from "lucide-react";
 import {
   customerRepository,
   deviceRepository,
   workOrderRepository,
+  type WorkOrderStatus,
 } from "@/data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +29,17 @@ import { Input } from "@/components/ui/input";
 import { Modal, Picker } from "./controls";
 import { Editor, singular, statuses, choices, type Kind } from "./editor";
 import { useRecords } from "./use-records";
+import { SummaryFilter } from "./summary-filter";
+import { IntakeView } from "./intake-view";
+import { StatusBadge } from "@/components/status-badge";
+import { getWorkOrderStatusStyle } from "@/lib/work-order-status";
+
+const statusIcons = {
+  Waiting: Clock3,
+  Repairing: Wrench,
+  Testing: FlaskConical,
+  Completed: CheckCircle2,
+};
 
 const titles = {
   customers: "Customers",
@@ -48,6 +74,7 @@ export function Workspace({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(0);
+  const [sort, setSort] = useState("newest");
   const [editor, setEditor] = useState<{
     kind: Kind;
     id?: string;
@@ -56,6 +83,8 @@ export function Workspace({
   const [deleting, setDeleting] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const [deletingBusy, setDeletingBusy] = useState(false);
+  const [statusBusy, setStatusBusy] = useState<WorkOrderStatus | null>(null);
+  const [statusError, setStatusError] = useState("");
   const customers = new Map(data.customers.map((c) => [c.id, c]));
   const devices = new Map(data.devices.map((d) => [d.id, d]));
   const collection =
@@ -103,12 +132,11 @@ export function Workspace({
         kind === "customers"
           ? data.devices.filter((d) => d.customerId === r.id)
           : [];
-      const haystack = JSON.stringify([
-        r,
-        owner,
-        unit,
-        relatedDevices,
-      ]).toLowerCase();
+      const haystack = JSON.stringify(
+        [r, owner, unit, relatedDevices],
+        (key, value) =>
+          ["accessCode", "dataUrl"].includes(key) ? undefined : value,
+      ).toLowerCase();
       return (
         query
           .toLowerCase()
@@ -123,7 +151,21 @@ export function Workspace({
               : true))
       );
     })
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    .sort((a, b) => {
+      if (sort === "name" && "name" in a && "name" in b)
+        return a.name.localeCompare(b.name);
+      if (sort === "oldest") return a.createdAt.localeCompare(b.createdAt);
+      if (kind === "work-orders" && "issue" in a && "issue" in b) {
+        if (sort === "updated") return b.updatedAt.localeCompare(a.updatedAt);
+        if (sort === "oldest") return a.createdAt.localeCompare(b.createdAt);
+        if (sort === "due")
+          return (
+            (a.dueDate || "9999").localeCompare(b.dueDate || "9999") ||
+            b.createdAt.localeCompare(a.createdAt)
+          );
+      }
+      return b.createdAt.localeCompare(a.createdAt);
+    });
   const currentPage = Math.min(
     page,
     Math.max(0, Math.ceil(matching.length / 20) - 1),
@@ -143,8 +185,24 @@ export function Workspace({
       </dd>
     </div>
   );
+  async function changeStatus(status: WorkOrderStatus) {
+    if (!order || statusBusy || order.status === status) return;
+    setStatusBusy(status);
+    setStatusError("");
+    try {
+      await workOrderRepository.update(order.id, { status });
+    } catch (error) {
+      setStatusError(
+        error instanceof Error
+          ? error.message
+          : "Could not update status. Please try again.",
+      );
+    } finally {
+      setStatusBusy(null);
+    }
+  }
   async function remove() {
-    if (!deleting) return;
+    if (!deleting || deletingBusy) return;
     setDeletingBusy(true);
     setActionError("");
     try {
@@ -170,7 +228,7 @@ export function Workspace({
       [
         JSON.stringify(
           { version: 1, exportedAt: new Date().toISOString(), ...data },
-          null,
+          (key, value) => (key === "accessCode" ? undefined : value),
           2,
         ),
       ],
@@ -212,7 +270,13 @@ export function Workspace({
           Back to {titles[kind].toLowerCase()}
         </Link>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div
+        className={
+          order || !detail
+            ? "flex flex-wrap items-center justify-between gap-5 rounded-xl border bg-card p-5 shadow-sm"
+            : "flex flex-wrap items-start justify-between gap-4"
+        }
+      >
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
             {record
@@ -230,21 +294,84 @@ export function Workspace({
         <div className="flex flex-wrap gap-2">
           {record ? (
             <>
+              {order && (
+                <div
+                  role="group"
+                  aria-label="Work order status"
+                  className="grid grid-cols-2 gap-1.5 rounded-xl border bg-muted/30 p-1.5 sm:grid-cols-4"
+                >
+                  {statuses.map((status) => {
+                    const Icon = statusIcons[status];
+                    const active = order.status === status;
+                    return (
+                      <Button
+                        key={status}
+                        variant="ghost"
+                        className={
+                          "h-9 gap-2 border px-3 " +
+                          getWorkOrderStatusStyle(status).button
+                        }
+                        aria-pressed={active}
+                        aria-disabled={active || !!statusBusy}
+                        disabled={!!statusBusy}
+                        onClick={() => void changeStatus(status)}
+                      >
+                        <Icon className="size-4" />
+                        <span className="grid">
+                          <span
+                            className={
+                              statusBusy === status
+                                ? "invisible col-start-1 row-start-1"
+                                : "col-start-1 row-start-1"
+                            }
+                          >
+                            {status}
+                          </span>
+                          <span
+                            aria-hidden={statusBusy !== status}
+                            className={
+                              statusBusy === status
+                                ? "col-start-1 row-start-1"
+                                : "invisible col-start-1 row-start-1"
+                            }
+                          >
+                            Saving...
+                          </span>
+                        </span>
+                        <Check
+                          className={active ? "size-3.5" : "invisible size-3.5"}
+                          aria-hidden="true"
+                        />
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
               <Button
-                variant="outline"
+                variant={order ? "ghost" : "outline"}
+                className={
+                  order
+                    ? "h-9 self-center gap-2 border border-border bg-muted/30 px-3 hover:bg-muted/60"
+                    : undefined
+                }
+                disabled={!!statusBusy}
                 onClick={() => setEditor({ kind, id: record.id })}
               >
+                {order && <Pencil className="size-4" />}
                 Edit {singular[kind]}
               </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setActionError("");
-                  setDeleting(record.id);
-                }}
-              >
-                Delete
-              </Button>
+              {kind !== "work-orders" && (
+                <Button
+                  variant="destructive"
+                  disabled={!!statusBusy}
+                  onClick={() => {
+                    setActionError("");
+                    setDeleting(record.id);
+                  }}
+                >
+                  Delete
+                </Button>
+              )}
               {kind === "customers" && (
                 <Button
                   onClick={() =>
@@ -289,46 +416,75 @@ export function Workspace({
           )}
         </div>
       </div>
+      {statusError && (
+        <p role="alert" className="text-sm text-destructive">
+          {statusError}
+        </p>
+      )}
       {!detail ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              ["Total records", collection.length],
-              [
-                "Active repairs",
-                data.orders.filter((o) => o.status !== "Completed").length,
-              ],
-              [
-                "Completed repairs",
-                data.orders.filter((o) => o.status === "Completed").length,
-              ],
-            ].map(([label, value]) => (
-              <Card key={label}>
-                <CardContent className="p-4">
-                  <p className="text-sm text-muted-foreground">{label}</p>
-                  <p className="mt-1 text-2xl font-semibold">{value}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          <Card>
-            <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-end">
-              <label className="flex-1 space-y-2 text-sm font-medium">
-                Search {titles[kind].toLowerCase()}
-                <Input
-                  className="mt-2 h-[38px]"
-                  placeholder="Name, ID, contact details, model, serial number or notes…"
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
+          {kind === "work-orders" && (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <SummaryFilter
+                label="All work orders"
+                count={collection.length}
+                icon={ClipboardList}
+                selected={!filter}
+                tone="border-border bg-card text-foreground"
+                onClick={() => {
+                  setFilter("");
+                  setPage(0);
+                }}
+              />
+              {statuses.map((status) => (
+                <SummaryFilter
+                  key={status}
+                  label={status}
+                  count={data.orders.filter((o) => o.status === status).length}
+                  icon={statusIcons[status]}
+                  selected={filter === status}
+                  tone={getWorkOrderStatusStyle(status).badge}
+                  onClick={() => {
+                    setFilter(filter === status ? "" : status);
                     setPage(0);
                   }}
                 />
+              ))}
+            </div>
+          )}
+          <Card>
+            <CardContent
+              className={
+                kind !== "customers"
+                  ? "grid grid-cols-1 items-end gap-3 p-4 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]"
+                  : "grid grid-cols-1 items-end gap-3 p-4 lg:grid-cols-[repeat(2,minmax(0,1fr))_auto]"
+              }
+            >
+              <label className="flex min-w-0 flex-1 flex-col gap-2 text-sm font-medium">
+                <span className="block">
+                  Search {titles[kind].toLowerCase()}
+                </span>
+                <span className="relative block">
+                  <Search
+                    aria-hidden="true"
+                    className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <Input
+                    className="h-[38px] py-0 pl-9 text-sm font-normal"
+                    placeholder="Name, ID, contact details, model, serial number or notes…"
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setPage(0);
+                    }}
+                  />
+                </span>
               </label>
               {kind !== "customers" && (
-                <div className="sm:w-56">
+                <div className="min-w-0">
                   <Picker
                     label={kind === "devices" ? "Category" : "Status"}
+                    statusPicker={kind === "work-orders"}
                     value={filter}
                     options={[
                       { value: "", label: "All" },
@@ -352,22 +508,51 @@ export function Workspace({
                   />
                 </div>
               )}
-              {(query || filter) && (
+              {
+                <div className="min-w-0">
+                  <Picker
+                    label="Sort by"
+                    value={sort}
+                    options={[
+                      { value: "newest", label: "Newest first" },
+                      { value: "oldest", label: "Oldest first" },
+                      ...(kind === "work-orders"
+                        ? [
+                            { value: "updated", label: "Recently updated" },
+                            { value: "due", label: "Due date" },
+                          ]
+                        : [{ value: "name", label: "Name A-Z" }]),
+                    ]}
+                    onChange={(value) => {
+                      setSort(value);
+                      setPage(0);
+                    }}
+                  />
+                </div>
+              }
+              {
                 <Button
                   variant="ghost"
+                  className="h-[38px] gap-2"
+                  disabled={!query && !filter}
                   onClick={() => {
                     setQuery("");
                     setFilter("");
                     setPage(0);
                   }}
                 >
-                  Clear
+                  <RotateCcw className="size-4" /> Clear
                 </Button>
-              )}
+              }
             </CardContent>
           </Card>
-          <p className="text-sm text-muted-foreground">
-            {matching.length} matching {titles[kind].toLowerCase()}
+          <p
+            role="status"
+            className="text-sm text-muted-foreground tabular-nums"
+          >
+            {matching.length ? currentPage * 20 + 1 : 0}–
+            {Math.min((currentPage + 1) * 20, matching.length)} of{" "}
+            {matching.length} {titles[kind].toLowerCase()}
           </p>
           <Card>
             <CardContent className="overflow-x-auto p-0">
@@ -385,6 +570,28 @@ export function Workspace({
                         singular[kind] +
                         " to get started."}
                   </p>
+                  {
+                    <Button
+                      className="mt-5 h-9 gap-2"
+                      variant="outline"
+                      onClick={() => {
+                        if (collection.length) {
+                          setQuery("");
+                          setFilter("");
+                          setPage(0);
+                        } else setEditor({ kind });
+                      }}
+                    >
+                      {collection.length ? (
+                        <RotateCcw className="size-4" />
+                      ) : (
+                        <Plus className="size-4" />
+                      )}
+                      {collection.length
+                        ? "Clear filters"
+                        : "New " + singular[kind]}
+                    </Button>
+                  }
                 </div>
               ) : (
                 <table className="w-full text-left text-sm">
@@ -406,11 +613,20 @@ export function Workspace({
                               "Due / cost",
                             ]
                       ).map((label) => (
-                        <th key={label} className="px-4 py-3 font-medium">
+                        <th
+                          scope="col"
+                          key={label}
+                          className="px-4 py-3 text-xs font-medium text-muted-foreground"
+                        >
                           {label}
                         </th>
                       ))}
-                      <th className="px-4 py-3">Actions</th>
+                      <th
+                        scope="col"
+                        className="w-40 px-4 py-3 text-xs font-medium text-muted-foreground"
+                      >
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -491,9 +707,7 @@ export function Workspace({
                               </p>
                             </td>
                             <td className="px-4 py-4">
-                              <span className="rounded-md bg-muted px-2 py-1">
-                                {r.status}
-                              </span>
+                              <StatusBadge status={r.status} />
                               <p className="mt-2 text-xs text-muted-foreground">
                                 {r.collectedAt
                                   ? "Collected"
@@ -510,22 +724,27 @@ export function Workspace({
                         ) : null}
                         <td className="px-4 py-4">
                           <div className="flex gap-2">
+                            {
+                              <Button
+                                nativeButton={false}
+                                render={<Link href={href(kind, r.id)} />}
+                                variant="ghost"
+                                size="sm"
+                                className="h-9 gap-2 border bg-muted/30 px-3"
+                                aria-label={"Open " + r.id}
+                              >
+                                <Eye className="size-4" />
+                                Open
+                              </Button>
+                            }
                             <Button
-                              variant="outline"
+                              variant="ghost"
+                              className="h-9 gap-2 border bg-muted/30 px-3"
+                              aria-label={"Edit " + r.id}
                               size="sm"
                               onClick={() => setEditor({ kind, id: r.id })}
                             >
-                              Edit
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setActionError("");
-                                setDeleting(r.id);
-                              }}
-                            >
-                              Delete
+                              <Pencil className="size-4" /> Edit
                             </Button>
                           </div>
                         </td>
@@ -635,12 +854,18 @@ export function Workspace({
                 </dl>
               </CardContent>
             </Card>
+            {order && <IntakeView key={order.id} order={order} />}
             {order && (
               <Card>
                 <CardContent className="p-6">
                   <h2 className="mb-5 text-lg font-semibold">Repair details</h2>
                   <dl className="grid gap-5 sm:grid-cols-2">
-                    {showValue("Status", order.status)}
+                    <div>
+                      <dt className="text-sm text-muted-foreground">Status</dt>
+                      <dd className="mt-1">
+                        <StatusBadge status={order.status} />
+                      </dd>
+                    </div>
                     {showValue("Service", order.service)}
                     {showValue("Reported issue", order.issue)}
                     {showValue("Description", order.description)}
@@ -661,7 +886,8 @@ export function Workspace({
                     ]
                   ).map((entry, i) => (
                     <p key={i} className="py-1 text-sm text-muted-foreground">
-                      {new Date(entry.at).toLocaleString()} · {entry.status}
+                      {new Date(entry.at).toLocaleString()} ·{" "}
+                      <StatusBadge status={entry.status} />
                     </p>
                   ))}
                 </CardContent>
@@ -709,7 +935,8 @@ export function Workspace({
                       >
                         {related("work-orders", o.id, o.id + " · " + o.issue)}
                         <span className="text-sm text-muted-foreground">
-                          {o.status} · {date(o.createdAt)}
+                          <StatusBadge status={o.status} /> ·{" "}
+                          {date(o.createdAt)}
                         </span>
                       </div>
                     ))}
@@ -720,7 +947,14 @@ export function Workspace({
         )
       )}
       {editor && (
-        <Editor {...editor} data={data} onClose={() => setEditor(null)} />
+        <Editor
+          {...editor}
+          data={data}
+          onClose={() => setEditor(null)}
+          onDeleted={() => {
+            if (detail) router.push("/dashboard/work-orders");
+          }}
+        />
       )}
       {deleting && (
         <Modal
@@ -729,7 +963,16 @@ export function Workspace({
             if (!deletingBusy) setDeleting(null);
           }}
         >
-          <p className="text-sm">Delete {deleting}? This cannot be undone.</p>
+          <p className="text-sm">
+            Are you sure you want to delete{" "}
+            {record && "name" in record ? record.name : singular[kind]} (
+            {deleting})? This cannot be undone.
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {kind === "customers"
+              ? "Customers with linked devices or work orders cannot be deleted."
+              : "Devices with linked work orders cannot be deleted."}
+          </p>
           {actionError && (
             <p role="alert" className="mt-3 text-sm text-destructive">
               {actionError}

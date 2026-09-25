@@ -1,50 +1,26 @@
+"use client";
 import { Activity, CheckCircle2, Clock3, Wrench } from "lucide-react";
 
-import {
-  customerRepository,
-  deviceRepository,
-  workOrderRepository,
-} from "@/data";
+import { useRecords } from "@/components/records/use-records";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClickableWorkOrder } from "@/components/clickable-work-order";
 import { StatusBadge } from "@/components/status-badge";
 import { formatRelativeTime } from "@/lib/format-relative-time";
-import {
-  createCustomerMap,
-  createDeviceMap,
-} from "@/lib/data-maps";
+import { createCustomerMap, createDeviceMap } from "@/lib/data-maps";
 import {
   getWorkOrderActivityTitle,
   getWorkOrderStatusColor,
+  statusColors,
+  getWorkOrderStatusStyle,
 } from "@/lib/work-order-status";
 import { sortWorkOrdersByUpdatedAt } from "@/lib/sort-work-orders";
 import { formatDateTime } from "@/lib/format-date-time";
 
-const colorClasses = {
-  blue: {
-    bar: "bg-blue-500",
-    icon: "bg-blue-500/10 text-blue-500",
-  },
-  amber: {
-    bar: "bg-amber-500",
-    icon: "bg-amber-500/10 text-amber-500",
-  },
-  purple: {
-    bar: "bg-purple-500",
-    icon: "bg-purple-500/10 text-purple-500",
-  },
-  green: {
-    bar: "bg-green-500",
-    icon: "bg-green-500/10 text-green-500",
-  },
-};
-
-export default async function DashboardPage() {
-  const [workOrders, devices, customers] = await Promise.all([
-    workOrderRepository.getAll(),
-    deviceRepository.getAll(),
-    customerRepository.getAll(),
-  ]);
+export default function DashboardPage() {
+  const { data, loading, error } = useRecords();
+  const { orders: workOrders, devices, customers } = data;
+  if (loading) return <p role="status">Loading workshop…</p>;
+  if (error) return <p role="alert">{error}</p>;
 
   const deviceMap = createDeviceMap(devices);
   const customerMap = createCustomerMap(customers);
@@ -60,7 +36,6 @@ export default async function DashboardPage() {
     statusCounts[workOrder.status]++;
   }
 
-
   const stats = [
     {
       title: "Active Repairs",
@@ -70,9 +45,9 @@ export default async function DashboardPage() {
       color: getWorkOrderStatusColor("Repairing"),
     },
     {
-      title: "Waiting Approval",
+      title: "Waiting",
       value: statusCounts.Waiting,
-      description: "Waiting for customer response",
+      description: "Work orders waiting to continue",
       icon: Clock3,
       color: getWorkOrderStatusColor("Waiting"),
     },
@@ -114,22 +89,18 @@ export default async function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
-          const colors = colorClasses[stat.color];
+          const colors = statusColors[stat.color];
 
           return (
             <Card key={stat.title} className="relative overflow-hidden">
-              <div
-                className={`absolute inset-x-0 top-0 h-1 ${colors.bar}`}
-              />
+              <div className={`absolute inset-x-0 top-0 h-1 ${colors.bar}`} />
 
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
                   {stat.title}
                 </CardTitle>
 
-                <div
-                  className={`rounded-lg p-2 ${colors.icon}`}
-                >
+                <div className={`rounded-lg p-2 ${colors.icon}`}>
                   <Icon className="size-4" />
                 </div>
               </CardHeader>
@@ -167,9 +138,7 @@ export default async function DashboardPage() {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-3">
-                        <span className="font-medium">
-                          {workOrder.id}
-                        </span>
+                        <span className="font-medium">{workOrder.id}</span>
 
                         <span className="text-sm text-muted-foreground">
                           {device?.name ?? "Unknown device"}
@@ -210,7 +179,12 @@ export default async function DashboardPage() {
                     id={workOrder.id}
                     className="flex gap-3 p-2"
                   >
-                    <div className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+                    <div
+                      className={
+                        "mt-1.5 size-2 shrink-0 rounded-full " +
+                        getWorkOrderStatusStyle(workOrder.status).bar
+                      }
+                    />
 
                     <div className="min-w-0">
                       <p className="text-sm font-medium">

@@ -2,8 +2,6 @@
 
 import {
     AlertTriangle,
-    Battery,
-    BatteryCharging,
     BatteryFull,
     BatteryLow,
     BatteryMedium,
@@ -17,7 +15,7 @@ import {
     Usb,
     Wrench,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,13 +68,11 @@ function BatteryIndicator({ level }: { level: number }) {
     );
 }
 
+const subscribeToCapabilities = () => () => {};
+
 export default function ControllerToolsPage() {
     const [connected, setConnected] = useState(false);
-    const [webHidSupported, setWebHidSupported] = useState(false);
-
-    useEffect(() => {
-        setWebHidSupported("hid" in navigator);
-    }, []);
+    const webHidSupported = useSyncExternalStore(subscribeToCapabilities, () => "hid" in navigator, () => false);
 
     return (
         <div className="space-y-6">
