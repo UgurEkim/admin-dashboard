@@ -464,7 +464,7 @@ export function Editor({
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Stored in the workshop database. Clear the code when the
-                      device is returned. It is excluded from backups.
+                      device is returned. Full backups include this code.
                     </p>
                     <IntakePhotos
                       photos={photos}

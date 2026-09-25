@@ -19,7 +19,11 @@ const command = z.object({
   data: z.unknown().optional(),
 });
 function localRequest(request: Request) {
+  // Standalone binds to 0.0.0.0 inside Docker; validate the browser-facing host,
+  // not Next's internal bind address. Forwarded headers are deliberately ignored.
   const url = new URL(request.url);
+  const host = request.headers.get("host");
+  if (host) url.host = host;
   if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
     throw new RecordError(
       "This development dashboard is available on localhost only.",

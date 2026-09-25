@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { Plus, Pencil, Download, ExternalLink } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import {
   setDefaultPhoneCountryCode,
@@ -23,9 +25,11 @@ const labels = {
   model: "Models",
   service: "Price list",
 };
-export function CatalogSettings() {
+export function CatalogSettings({ pricing = false }: { pricing?: boolean }) {
   const { data, loading, error } = useRecords();
-  const [kind, setKind] = useState<CatalogKind>("category");
+  const [kind, setKind] = useState<CatalogKind>(
+    pricing ? "service" : "category",
+  );
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [deleting, setDeleting] = useState<CatalogItem | null>(null);
@@ -80,64 +84,88 @@ export function CatalogSettings() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  if (loading) return <p>Loading settings…</p>;
+  if (loading)
+    return <p role="status">Loading {pricing ? "pricing" : "settings"}…</p>;
   if (error) return <p role="alert">{error}</p>;
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="mt-1 text-muted-foreground">
-          Manage customer defaults, your device catalog and service prices.
-        </p>
-      </div>
-      <Card>
-        <CardContent className="max-w-sm p-5">
-          <Picker
-            label="Default phone country code"
-            value={code || data.settings.defaultPhoneCountryCode}
-            options={phoneCountryCodes.map((value) => ({
-              value,
-              label: value,
-            }))}
-            onChange={async (v) => {
-              if (!v) return;
-              try {
-                await setDefaultPhoneCountryCode(v as PhoneCountryCode);
-                setCode(v);
-                setMessage("");
-              } catch {
-                setMessage("Could not save the default code.");
-              }
-            }}
-          />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Used for new customers.
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card p-5">
+        <div>
+          <h1 className="text-3xl font-bold">
+            {pricing ? "Pricing" : "Settings"}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {pricing
+              ? "Manage service prices for work orders and your customer-facing price list."
+              : "Manage customer defaults and your device catalog."}
           </p>
-        </CardContent>
-      </Card>
-      <div>
-        <h2 className="text-xl font-semibold">Device catalog & pricing</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Changes apply to new selections. Existing device details and
-          work-order estimates are retained.
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {(Object.keys(labels) as CatalogKind[]).map((k) => (
+        </div>
+        {pricing && (
           <Button
-            key={k}
-            variant={kind === k ? "default" : "outline"}
-            aria-pressed={kind === k}
-            onClick={() => {
-              setKind(k);
-              setQuery("");
-            }}
+            nativeButton={false}
+            render={
+              <Link href="/pricing" target="_blank" rel="noopener noreferrer" />
+            }
+            variant="outline"
+            className="h-9 gap-2"
           >
-            {labels[k]}
+            <ExternalLink className="size-4" />
+            View customer prices
           </Button>
-        ))}
+        )}
       </div>
-      <div className="flex flex-wrap items-end gap-3">
+      {!pricing && (
+        <>
+          <Card>
+            <CardContent className="max-w-sm p-5">
+              <Picker
+                label="Default phone country code"
+                value={code || data.settings.defaultPhoneCountryCode}
+                options={phoneCountryCodes.map((value) => ({
+                  value,
+                  label: value,
+                }))}
+                onChange={async (v) => {
+                  if (!v) return;
+                  try {
+                    await setDefaultPhoneCountryCode(v as PhoneCountryCode);
+                    setCode(v);
+                    setMessage("");
+                  } catch {
+                    setMessage("Could not save the default code.");
+                  }
+                }}
+              />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Used for new customers.
+              </p>
+            </CardContent>
+          </Card>
+          <div>
+            <h2 className="text-xl font-semibold">Device catalog</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Changes apply to new selections. Existing device details and
+              work-order estimates are retained.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(["category", "brand", "model"] as CatalogKind[]).map((k) => (
+              <Button
+                key={k}
+                variant={kind === k ? "default" : "outline"}
+                aria-pressed={kind === k}
+                onClick={() => {
+                  setKind(k);
+                  setQuery("");
+                }}
+              >
+                {labels[k]}
+              </Button>
+            ))}
+          </div>
+        </>
+      )}
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4">
         <label className="min-w-48 flex-1 space-y-2 text-sm font-medium">
           Search {labels[kind].toLowerCase()}
           <input
@@ -147,25 +175,32 @@ export function CatalogSettings() {
           />
         </label>
         {kind === "service" && (
-          <Button variant="outline" onClick={exportPrices}>
+          <Button
+            variant="outline"
+            className="h-9 gap-2"
+            onClick={exportPrices}
+          >
+            <Download className="size-4" />
             Export public prices
           </Button>
         )}
         <Button
+          className="h-9 gap-2"
           onClick={() => {
             setMessage("");
             setEditing({ id: crypto.randomUUID(), kind, name: "", price: "" });
           }}
         >
+          <Plus className="size-4" />
           Add {kind === "service" ? "service / price" : kind}
         </Button>
       </div>
       {kind === "service" && (
         <p className="text-sm text-muted-foreground">
           Enter your customer-facing prices in euros. Leave a price blank for a
-          quote. Set an optional scope for different device prices. Public
-          export contains only services and pricing; connecting a public website
-          to live changes will require shared backend storage.
+          quote. Set an optional scope for different device prices. Saved
+          changes also appear on the customer price list. Existing work-order
+          estimates stay unchanged.
         </p>
       )}
       {message && !editing && !deleting && (
@@ -176,7 +211,7 @@ export function CatalogSettings() {
       <Card>
         <CardContent className="overflow-x-auto p-0">
           <table className="w-full text-left text-sm">
-            <thead className="border-b">
+            <thead className="border-b bg-muted/30">
               <tr>
                 <th className="p-4">Name</th>
                 <th className="p-4">Applies to</th>
@@ -186,7 +221,10 @@ export function CatalogSettings() {
             </thead>
             <tbody>
               {rows.map((item) => (
-                <tr className="border-b last:border-0" key={item.id}>
+                <tr
+                  className="border-b last:border-0 hover:bg-muted/30"
+                  key={item.id}
+                >
                   <td className="p-4 font-medium">
                     {item.name}
                     {item.description && (
@@ -221,6 +259,7 @@ export function CatalogSettings() {
                           setMessage("");
                         }}
                       >
+                        <Pencil className="size-4" />
                         Edit
                       </Button>
                       <Button

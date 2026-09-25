@@ -13,8 +13,8 @@ add authentication and deployment configuration before exposing it publicly.
    and a persistent named volume. Do not remove that volume when restarting.
 3. Run `npm run db:generate`, then `npm run db:migrate`.
 4. Restart `npm run dev` so the server reads DATABASE_URL.
-5. Open Settings → Database & migration → Review browser records in the same
-   browser/origin used before. Review the counts and choose Import records.
+5. To restore saved data, open Settings / Database backups / Import backup,
+   select your JSON backup, review the counts and confirm the import.
 
 For an existing PostgreSQL server, set DATABASE_URL in `.env` to an empty database
 you control, then run the generation/migration commands. Never put this URL in a
@@ -26,6 +26,17 @@ An already-populated business database or edited catalog blocks import. There is
 no merge/overwrite mode. Repeating an identical completed import is a no-op.
 Keep the original browser data and JSON export until the migrated records have
 been checked. Browser data is never deleted automatically.
+
+## Central backups
+
+Settings / Database backups / Download full backup fetches a fresh consistent
+snapshot from PostgreSQL. It downloads an import-compatible, timestamped JSON
+file containing all application records, photos, history, catalog/prices,
+settings, sequence counters and device PINs. No backup actions appear on lists.
+The download location is controlled by the browser. Store these unencrypted
+files securely. This is an application-data backup, not a pg_dump: internal
+import receipts, Prisma migrations and database schema are not exported. Restore
+into a migrated empty database using the JSON importer (currently 32 MB maximum).
 
 ## Data design
 

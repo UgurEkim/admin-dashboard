@@ -1,4 +1,36 @@
 services:
+  migrate:
+    profiles: ["app"]
+    build:
+      context: .
+      target: migrations
+    environment:
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://repair:repair@db:5432/repair_admin}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      target: runner
+    environment:
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://repair:repair@db:5432/repair_admin}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      ALLOW_UNAUTHENTICATED_LOCAL: ${ALLOW_UNAUTHENTICATED_LOCAL:-false}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    init: true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
   db:
     image: postgres:17
     environment:

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ChevronRight,
+  Tags,
   Gamepad2,
   LayoutDashboard,
   Settings,
@@ -46,6 +47,7 @@ const items = [
     url: "/dashboard/devices",
     icon: Gamepad2,
   },
+  { title: "Pricing", url: "/dashboard/pricing", icon: Tags },
 ];
 
 const toolItems = [
@@ -93,6 +95,11 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     tooltip={item.title}
+                    isActive={
+                      pathname === item.url ||
+                      (item.url !== "/dashboard" &&
+                        pathname.startsWith(item.url + "/"))
+                    }
                     render={<Link href={item.url} />}
                   >
                     <item.icon />
@@ -110,8 +117,9 @@ export function AppSidebar() {
                   <span>Tools</span>
 
                   <ChevronRight
-                    className={`ml-auto transition-transform ${toolsOpen ? "rotate-90" : ""
-                      }`}
+                    className={`ml-auto transition-transform ${
+                      toolsOpen ? "rotate-90" : ""
+                    }`}
                   />
                 </SidebarMenuButton>
 

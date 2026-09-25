@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Plus,
   ArrowLeft,
-  Download,
   Check,
   Clock3,
   Wrench,
@@ -223,25 +222,6 @@ export function Workspace({
       setDeletingBusy(false);
     }
   }
-  function exportBackup() {
-    const blob = new Blob(
-      [
-        JSON.stringify(
-          { version: 1, exportedAt: new Date().toISOString(), ...data },
-          (key, value) => (key === "accessCode" ? undefined : value),
-          2,
-        ),
-      ],
-      { type: "application/json" },
-    );
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download =
-      "repair-records-" + new Date().toISOString().slice(0, 10) + ".json";
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
   if (loading)
     return <p role="status">Loading {titles[kind].toLowerCase()}…</p>;
   if (error)
@@ -404,10 +384,6 @@ export function Workspace({
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={exportBackup}>
-                <Download />
-                Export backup
-              </Button>
               <Button onClick={() => setEditor({ kind })}>
                 <Plus />
                 New {singular[kind]}

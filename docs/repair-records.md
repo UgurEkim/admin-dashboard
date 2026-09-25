@@ -12,12 +12,12 @@ code are stored in SQL. Theme preferences and live hardware sessions remain loca
 There are no mock customer/device/order seeds. Catalog defaults are initialized
 once and never restored after deletion.
 
-Settings contains an explicit browser/JSON import. The importer preserves IDs,
+Settings contains an explicit JSON backup import. The importer preserves IDs,
 relationships, history, intake details and sequence high-water marks. Imports are
 atomic, reject non-empty business databases and avoid duplicate retries. Existing
-browser storage is never erased or used as a fallback. Export backup includes
-catalog, settings and sequences but excludes device PINs; use a database backup
-if those also need to be preserved. See database.md for setup and migration.
+browser storage is never erased or used as a fallback. Settings is the central location for full application-data backups. Downloads
+include catalog, settings, sequences and device PINs. They are unencrypted JSON
+files, not PostgreSQL schema/SQL dumps. See database.md for setup and migration.
 
 Shared accessible dialogs and searchable pickers live in components/records.
 Repository validation enforces ownership, duplicate serial checks and deletion
@@ -40,7 +40,7 @@ The intake modal records condition, accessories, up to four compressed photos
 and an optional device access code. Photos are resized to 960 pixels and limited
 to 800 KB of encoded data per order in the database.
 Access codes are masked in the interface, stored without encryption, excluded
-from search and JSON backups, and should be cleared when returning the device.
+from search, included in full backups, and should be cleared when returning the device.
 
 Previously saved approval states are imported as Waiting. Retired approval fields
 and approval-only history entries are omitted during migration;
